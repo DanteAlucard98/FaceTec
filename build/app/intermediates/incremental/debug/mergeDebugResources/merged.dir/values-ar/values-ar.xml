@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="FaceTec_accessibility_cancel_button">إلغاء</string>
+    <string name="FaceTec_accessibility_feedback_face_not_on_camera">الوجه ليس على الكاميرا أو بعيدًا جدًا</string>
+    <string name="FaceTec_accessibility_feedback_face_pointing_too_far_left">وجهك يشير إلى اليسار أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_pointing_too_far_right">وجهك يشير إلى اليمين أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_rotated_too_far_left">تم تدوير وجهك ناحية اليسار أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_rotated_too_far_right">تم تدوير وجهك ناحية اليمين أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_too_far_left">وجهك ناحية اليسار أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_too_far_right">وجهك ناحية اليمين أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_too_high">وجهك مرتفع أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_face_too_low">وجهك منخفض أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_hold_device_to_eye_level">أمسك الجهاز على مستوى العين</string>
+    <string name="FaceTec_accessibility_feedback_move_phone_away">وجهك قريب أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_feedback_move_phone_closer">وجهك بعيد أكثر من اللازم</string>
+    <string name="FaceTec_accessibility_tap_guidance">انقر مرتين في أي مكان على الشاشة لتوجيه محاذاة الوجه.</string>
+    <string name="FaceTec_accessibility_torch_button">تبديل الضوء</string>
+    <string name="FaceTec_action_accept_photo">أقبل</string>
+    <string name="FaceTec_action_confirm">تأكيد المعلومات</string>
+    <string name="FaceTec_action_continue">التقاط صورة</string>
+    <string name="FaceTec_action_im_ready">أنا مستعد</string>
+    <string name="FaceTec_action_ok">أوافق</string>
+    <string name="FaceTec_action_retake_photo">إعادة</string>
+    <string name="FaceTec_action_scan_nfc">امسح الجواز الإلكتروني</string>
+    <string name="FaceTec_action_scan_nfc_card">امسح بطاقة الهوية</string>
+    <string name="FaceTec_action_skip_nfc">تخطي هذه الخطوة</string>
+    <string name="FaceTec_action_take_photo">التقاط صورة</string>
+    <string name="FaceTec_action_try_again">المحاولة مرة أخرى</string>
+    <string name="FaceTec_camera_permission_enable_camera">تفعيل الكاميرا</string>
+    <string name="FaceTec_camera_permission_header">فعّل الكاميرا</string>
+    <string name="FaceTec_camera_permission_launch_settings">تشغيل الإعدادات</string>
+    <string name="FaceTec_camera_permission_message_auth">تم تعطيل الكاميرا الخاصة بك. انقر أدناه لتعديل الإعدادات الخاصة بك.</string>
+    <string name="FaceTec_camera_permission_message_enroll">يُرجى النقر على الزر أدناه لتمكين كاميرا الصور الذاتية الخاصة بك.</string>
+    <string name="FaceTec_feedback_center_face">قم بتوسيط وجهك</string>
+    <string name="FaceTec_feedback_face_not_found">ضع وجهك في الإطار</string>
+    <string name="FaceTec_feedback_face_not_looking_straight_ahead">انظر إلى الأمام مباشرةً</string>
+    <string name="FaceTec_feedback_face_not_upright">ارفع رأسك بشكل مستقيم</string>
+    <string name="FaceTec_feedback_hold_steady">أمسك بثبات</string>
+    <string name="FaceTec_feedback_move_phone_away">تحرّك بعيدًا</string>
+    <string name="FaceTec_feedback_move_phone_closer">اقترب أكثر</string>
+    <string name="FaceTec_feedback_move_phone_to_eye_level">حرّك الكاميرا إلى مستوى العين</string>
+    <string name="FaceTec_feedback_use_even_lighting">اجعل الضوء على وجهك بشكل متساوٍ أكثر</string>
+    <string name="FaceTec_idscan_additional_review_message">مطلوب\nمراجعة إضافية</string>
+    <string name="FaceTec_idscan_capture_hold_steady_message">من فضلك أمسك بثبات</string>
+    <string name="FaceTec_idscan_capture_id_back_instruction_message">أظهر خلفية الهوية التعريفية</string>
+    <string name="FaceTec_idscan_capture_id_front_instruction_message">أظهر مقدمة الهوية التعريفية</string>
+    <string name="FaceTec_idscan_capture_tap_to_focus_message">انقر فوق الشاشة للتركيز</string>
+    <string name="FaceTec_idscan_feedback_flip_id_to_back_message">أظهر خلفية الهوية التعريفية</string>
+    <string name="FaceTec_idscan_nfc_card_status_finished_with_error_message">شريحة بطاقة الهوية التعريفية\n غير قابلة للقراءة</string>
+    <string name="FaceTec_idscan_nfc_card_status_ready_message">استعد لمسح\n شريحة بطاقة الهوية التعريفية الخاصة بك ضوئيًا</string>
+    <string name="FaceTec_idscan_nfc_card_status_starting_message">أمسك الهاتف ناحية بطاقة الهوية التعريفية\nلمسح شريحة NFC ضوئيًا</string>
+    <string name="FaceTec_idscan_nfc_status_disabled_message">يُرجى تفعيل NFC\n في إعدادات جهازك\n للمتابعة</string>
+    <string name="FaceTec_idscan_nfc_status_finished_with_error_message">شريحة جواز السفر الإلكتروني\nغير قابلة للقراءة</string>
+    <string name="FaceTec_idscan_nfc_status_finished_with_success_message">اكتمل\nمسح المستند ضوئيًا</string>
+    <string name="FaceTec_idscan_nfc_status_ready_message">استعد لمسح\n شريحة جواز السفر الإلكتروني الخاص بك ضوئيًا</string>
+    <string name="FaceTec_idscan_nfc_status_scanning_message">أمسكه بثبات،\n جارٍ مسح شريحة NFC ضوئيًا</string>
+    <string name="FaceTec_idscan_nfc_status_skipped_message">تم تخطي مسح NFC ضوئيًا\n</string>
+    <string name="FaceTec_idscan_nfc_status_starting_message">أمسك الهاتف ناحية الغلاف\nالخلفي لجواز السفر الإلكتروني\n لمسح شريحة NFC ضوئيًا</string>
+    <string name="FaceTec_idscan_nfc_status_weak_connection_message">لنحاول\nمسح ضوئي آخر</string>
+    <string name="FaceTec_idscan_ocr_confirmation_main_header">مراجعة وتأكيد</string>
+    <string name="FaceTec_idscan_ocr_confirmation_scroll_message">مرر لأسفل</string>
+    <string name="FaceTec_idscan_review_id_back_instruction_message">تأكّد من أن الصورة واضحة ومقروءة</string>
+    <string name="FaceTec_idscan_review_id_front_instruction_message">تأكّد من أن الصورة واضحة ومقروءة</string>
+    <string name="FaceTec_idscan_type_selection_header">استعد لمسح\nمستند الهوية التعريفية الخاصة بك ضوئيًا</string>
+    <string name="FaceTec_initializing_camera">تأمين بث الكاميرا</string>
+    <string name="FaceTec_instructions_header_ready_1">استعد من أجل</string>
+    <string name="FaceTec_instructions_header_ready_2">تصوير فيديو ذاتي</string>
+    <string name="FaceTec_instructions_message_ready_1">ضع وجهك في الشكل البيضاوي</string>
+    <string name="FaceTec_instructions_message_ready_2">اضغط على أنا جاهز واقترب</string>
+    <string name="FaceTec_presession_brighten_your_environment">قم بزيادة الضوء في محيطك</string>
+    <string name="FaceTec_presession_conditions_too_bright">الظروف شديدة السطوع</string>
+    <string name="FaceTec_presession_frame_your_face">ضع وجهك في الشكل البيضاوي</string>
+    <string name="FaceTec_presession_hold_steady_1">أمسك بثبات لمدة: 1</string>
+    <string name="FaceTec_presession_hold_steady_2">أمسك بثبات لمدة: 2</string>
+    <string name="FaceTec_presession_hold_steady_3">أمسك بثبات لمدة: 3</string>
+    <string name="FaceTec_presession_neutral_expression">تعبير محايد، لا تبتسم</string>
+    <string name="FaceTec_presession_position_face_straight_in_oval">انظر إلى الأمام مباشرةً</string>
+    <string name="FaceTec_presession_remove_dark_glasses">قم بإزالة النظارات الداكنة</string>
+    <string name="FaceTec_result_facescan_upload_message">تحميل \nمشفر\n لمسح ضوئي ثلاثي الأبعاد للوجه</string>
+    <string name="FaceTec_result_idscan_retry_barcode_not_read_message">فشل مسح الرمز الشريطي ضوئيًا\nيُرجى المحاولة مرة أخرى</string>
+    <string name="FaceTec_result_idscan_retry_face_did_not_match_message">الوجه غير متطابق\nبدرجة كافية</string>
+    <string name="FaceTec_result_idscan_retry_id_not_fully_visible_message">مستند الهوية التعريفية\nغير مرئي بالكامل</string>
+    <string name="FaceTec_result_idscan_retry_id_type_not_supported_message">نوع الهوية التعريفية غير معتمد\nيُرجى استخدام هوية تعريفية مختلفة</string>
+    <string name="FaceTec_result_idscan_retry_ocr_results_not_good_enough_message">نص الهوية التعريفية غير مقروء</string>
+    <string name="FaceTec_result_idscan_skip_or_error_nfc_message">تم تحميل\nبيانات الهوية التعريفية</string>
+    <string name="FaceTec_result_idscan_success_additional_review_message">اكتمل\nالتقاط صورة الهوية التعريفية</string>
+    <string name="FaceTec_result_idscan_success_back_side_message">اكتمل مسح الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_back_side_nfc_next_message">تم مسح\nخلفية الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_front_side_back_next_message">تم مسح\nمقدمة الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_front_side_message">اكتمل مسح الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_front_side_nfc_next_message">تم مسح\nمقدمة الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_nfc_message">اكتمل مسح الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_passport_message">اكتمل مسح جواز السفر ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_passport_nfc_next_message">تم مسح جواز السفر ضوئيًا</string>
+    <string name="FaceTec_result_idscan_success_user_confirmation_message">اكتمل\nمسح صورة الهوية التعريفية ضوئيًا</string>
+    <string name="FaceTec_result_idscan_unsuccess_message">صورة الهوية التعريفية\nلم تتطابق\nمع وجه المستخدم</string>
+    <string name="FaceTec_result_idscan_upload_message">تحميل \nمشفر\n لمسح ضوئي للهوية التعريفية</string>
+    <string name="FaceTec_result_nfc_upload_message">تحميل \nمشفر\n لبيانات NFC</string>
+    <string name="FaceTec_result_success_message">نجاح</string>
+    <string name="FaceTec_retry_header">لنحاول ذلك مرة أخرى</string>
+    <string name="FaceTec_retry_ideal_image_label">الوضعية المثالية</string>
+    <string name="FaceTec_retry_instruction_message_1">تعبير محايد، لا تبتسم</string>
+    <string name="FaceTec_retry_instruction_message_2">استخدم الوضعية والإضاءة المثاليين</string>
+    <string name="FaceTec_retry_instruction_message_3">ضبابية للغاية، نظّف الكاميرا</string>
+    <string name="FaceTec_retry_subheader_message">نحتاج إلى تصوير فيديو ذاتي أوضح</string>
+    <string name="FaceTec_retry_your_image_label">صورتك الذاتية</string>
+    <string msgid="5976598919945601918" name="abc_action_bar_home_description">"التوجه إلى المنزل"</string>
+    <string msgid="8388173803310557296" name="abc_action_bar_up_description">"التنقل إلى أعلى"</string>
+    <string msgid="3937310113216875497" name="abc_action_menu_overflow_description">"خيارات أكثر"</string>
+    <string msgid="4692188335987374352" name="abc_action_mode_done">"تم"</string>
+    <string msgid="1189761859438369441" name="abc_activity_chooser_view_see_all">"عرض الكل"</string>
+    <string msgid="2165779757652331008" name="abc_activitychooserview_choose_application">"اختيار تطبيق"</string>
+    <string msgid="4215997306490295099" name="abc_capital_off">"إيقاف"</string>
+    <string msgid="884982626291842264" name="abc_capital_on">"مفعّلة"</string>
+    <string msgid="8833365367933412986" name="abc_menu_alt_shortcut_label">"Alt+"</string>
+    <string msgid="2223301931652355242" name="abc_menu_ctrl_shortcut_label">"Ctrl+"</string>
+    <string msgid="838001238306846836" name="abc_menu_delete_shortcut_label">"حذف"</string>
+    <string msgid="7986526966204849475" name="abc_menu_enter_shortcut_label">"enter"</string>
+    <string msgid="375214403600139847" name="abc_menu_function_shortcut_label">"Function+"</string>
+    <string msgid="4192209724446364286" name="abc_menu_meta_shortcut_label">"Meta+"</string>
+    <string msgid="4741552369836443843" name="abc_menu_shift_shortcut_label">"Shift+"</string>
+    <string msgid="5473865519181928982" name="abc_menu_space_shortcut_label">"فضاء"</string>
+    <string msgid="6180552449598693998" name="abc_menu_sym_shortcut_label">"Sym+"</string>
+    <string msgid="5520303668377388990" name="abc_prepend_shortcut_label">"القائمة+"</string>
+    <string msgid="7208076849092622260" name="abc_search_hint">"بحث…"</string>
+    <string msgid="3741173234950517107" name="abc_searchview_description_clear">"محو طلب البحث"</string>
+    <string msgid="693312494995508443" name="abc_searchview_description_query">"طلب بحث"</string>
+    <string msgid="3417662926640357176" name="abc_searchview_description_search">"البحث"</string>
+    <string msgid="1486535517437947103" name="abc_searchview_description_submit">"إرسال طلب البحث"</string>
+    <string msgid="2293578557972875415" name="abc_searchview_description_voice">"بحث صوتي"</string>
+    <string msgid="8875138169939072951" name="abc_shareactionprovider_share_with">"مشاركة مع"</string>
+    <string msgid="9055268688411532828" name="abc_shareactionprovider_share_with_application">"مشاركة مع <ns1:g id="APPLICATION_NAME">%s</ns1:g>"</string>
+    <string msgid="1656852541809559762" name="abc_toolbar_collapse_description">"تصغير"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"ردّ"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"فيديو"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"رفض"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"قطع الاتصال"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"مكالمة واردة"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"مكالمة جارية"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"يتم فحص المكالمة الواردة"</string>
+    <string msgid="6264217191555673260" name="search_menu_title">"البحث"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+</resources>

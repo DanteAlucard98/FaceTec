@@ -1,0 +1,2 @@
+/Users/grupobecm/Downloads/FaceTec-Android-iOS-SDK-Flutter-1/build/.cxx/Debug/45544p2m/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/grupobecm/Downloads/FaceTec-Android-iOS-SDK-Flutter-1/build/.cxx/Debug/45544p2m/arm64-v8a/CMakeFiles/rebuild_cache.dir

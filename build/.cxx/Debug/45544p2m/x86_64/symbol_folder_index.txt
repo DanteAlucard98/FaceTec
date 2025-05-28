@@ -1,0 +1,1 @@
+/Users/grupobecm/Downloads/FaceTec-Android-iOS-SDK-Flutter-1/build/app/intermediates/cxx/Debug/45544p2m/obj/x86_64

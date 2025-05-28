@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="FaceTec_accessibility_cancel_button">Cancelar</string>
+    <string name="FaceTec_accessibility_feedback_face_not_on_camera">El rostro no se ve en la cámara o está demasiado lejos</string>
+    <string name="FaceTec_accessibility_feedback_face_pointing_too_far_left">Su rostro está demasiado inclinado hacia la izquierda</string>
+    <string name="FaceTec_accessibility_feedback_face_pointing_too_far_right">Su rostro está demasiado inclinado hacia la derecha</string>
+    <string name="FaceTec_accessibility_feedback_face_rotated_too_far_left">Su rostro gira demasiado a la izquierda</string>
+    <string name="FaceTec_accessibility_feedback_face_rotated_too_far_right">Su rostro gira demasiado a la derecha</string>
+    <string name="FaceTec_accessibility_feedback_face_too_far_left">Su rostro está demasiado a la izquierda</string>
+    <string name="FaceTec_accessibility_feedback_face_too_far_right">Su rostro está demasiado a la derecha</string>
+    <string name="FaceTec_accessibility_feedback_face_too_high">Su rostro está demasiado arriba</string>
+    <string name="FaceTec_accessibility_feedback_face_too_low">Su rostro está demasiado abajo</string>
+    <string name="FaceTec_accessibility_feedback_hold_device_to_eye_level">Mantenga el dispositivo a la altura de los ojos</string>
+    <string name="FaceTec_accessibility_feedback_move_phone_away">Su rostro está demasiado cerca</string>
+    <string name="FaceTec_accessibility_feedback_move_phone_closer">Su rostro está demasiado lejos</string>
+    <string name="FaceTec_accessibility_tap_guidance">Toque dos veces cualquier parte de la pantalla para ver indicaciones sobre cómo alinear el rostro.</string>
+    <string name="FaceTec_accessibility_torch_button">Interruptor de iluminación</string>
+    <string name="FaceTec_action_accept_photo">ACEPTAR</string>
+    <string name="FaceTec_action_confirm">CONFIRMAR INFORMACIÓN</string>
+    <string name="FaceTec_action_continue">CONTINUAR</string>
+    <string name="FaceTec_action_im_ready">ESTOY LISTO</string>
+    <string name="FaceTec_action_ok">ACEPTAR</string>
+    <string name="FaceTec_action_retake_photo">VOLVER</string>
+    <string name="FaceTec_action_scan_nfc">VOLVER A ESCANEAR</string>
+    <string name="FaceTec_action_scan_nfc_card">VOLVER A ESCANEAR</string>
+    <string name="FaceTec_action_skip_nfc">OMITIR ESTE PASO</string>
+    <string name="FaceTec_action_take_photo">TOMAR FOTO</string>
+    <string name="FaceTec_action_try_again">VOLVER A INTENTARLO</string>
+    <string name="FaceTec_camera_permission_enable_camera">HABILITAR LA CÁMARA</string>
+    <string name="FaceTec_camera_permission_header">Habilite la cámara</string>
+    <string name="FaceTec_camera_permission_launch_settings">ABRIR LA CONFIGURACIÓN</string>
+    <string name="FaceTec_camera_permission_message_auth">La cámara está deshabilitada. Toque a continuación para editar su configuración.</string>
+    <string name="FaceTec_camera_permission_message_enroll">Por favor, toque el botón de abajo para activar su cámara de selfis.</string>
+    <string name="FaceTec_feedback_center_face">Centre su rostro</string>
+    <string name="FaceTec_feedback_face_not_found">Encuadre su rostro</string>
+    <string name="FaceTec_feedback_face_not_looking_straight_ahead">Mire hacia el frente</string>
+    <string name="FaceTec_feedback_face_not_upright">Mantenga la cabeza recta</string>
+    <string name="FaceTec_feedback_hold_steady">Quédese quieto</string>
+    <string name="FaceTec_feedback_move_phone_away">Apártese</string>
+    <string name="FaceTec_feedback_move_phone_closer">Acérquese</string>
+    <string name="FaceTec_feedback_move_phone_to_eye_level">Coloque la cámara a la altura de los ojos</string>
+    <string name="FaceTec_feedback_use_even_lighting">Ilumine el rostro de forma más uniforme</string>
+    <string name="FaceTec_idscan_additional_review_message">Se requiere\nuna verificación adicional</string>
+    <string name="FaceTec_idscan_capture_hold_steady_message">Quédese quieto</string>
+    <string name="FaceTec_idscan_capture_id_back_instruction_message">Reverso de su identificación</string>
+    <string name="FaceTec_idscan_capture_id_front_instruction_message">Anverso de su identificación</string>
+    <string name="FaceTec_idscan_capture_tap_to_focus_message">Toque la pantalla para enfocar</string>
+    <string name="FaceTec_idscan_feedback_flip_id_to_back_message">Reverso de su identificación</string>
+    <string name="FaceTec_idscan_nfc_card_status_finished_with_error_message">No se puede leer\nel chip de la identificación</string>
+    <string name="FaceTec_idscan_nfc_card_status_ready_message">Prepárese para escanear\nel chip de su identificación</string>
+    <string name="FaceTec_idscan_nfc_card_status_starting_message">Acerque el teléfono a su identificación\npara escanear el chip NFC</string>
+    <string name="FaceTec_idscan_nfc_status_disabled_message">Habilite el NFC\nen la configuración de su dispositivo\npara continuar</string>
+    <string name="FaceTec_idscan_nfc_status_finished_with_error_message">No se puede leer\nel chip del pasaporte electrónico</string>
+    <string name="FaceTec_idscan_nfc_status_finished_with_success_message">Escaneo de documentos\ncompletado</string>
+    <string name="FaceTec_idscan_nfc_status_ready_message">Prepárese para escanear\nel chip de su pasaporte electrónico</string>
+    <string name="FaceTec_idscan_nfc_status_scanning_message">Manténgalo quieto,\nescaneando el chip NFC</string>
+    <string name="FaceTec_idscan_nfc_status_skipped_message">Escaneo NFC\nomitido</string>
+    <string name="FaceTec_idscan_nfc_status_starting_message">Acerque el teléfono a la parte\nposterior del ePasaporte\npara escanear el chip NFC</string>
+    <string name="FaceTec_idscan_nfc_status_weak_connection_message">Intentemos\notro escaneo</string>
+    <string name="FaceTec_idscan_ocr_confirmation_main_header">Revisar y confirmar</string>
+    <string name="FaceTec_idscan_ocr_confirmation_scroll_message">Desplácese hacia abajo</string>
+    <string name="FaceTec_idscan_review_id_back_instruction_message">Verifique sea nítida y legible</string>
+    <string name="FaceTec_idscan_review_id_front_instruction_message">Verifique sea nítida y legible</string>
+    <string name="FaceTec_idscan_type_selection_header">Prepárese para escanear\nsu identificación</string>
+    <string name="FaceTec_initializing_camera">Protegiendo la conexión</string>
+    <string name="FaceTec_instructions_header_ready_1">Prepárese para</string>
+    <string name="FaceTec_instructions_header_ready_2">su videoselfie</string>
+    <string name="FaceTec_instructions_message_ready_1">Encuadre su rostro en el óvalo</string>
+    <string name="FaceTec_instructions_message_ready_2">Presione Estoy listo y acérquese</string>
+    <string name="FaceTec_presession_brighten_your_environment">Ilumine su entorno</string>
+    <string name="FaceTec_presession_conditions_too_bright">Demasiada luz</string>
+    <string name="FaceTec_presession_frame_your_face">Encuadre su rostro en el óvalo</string>
+    <string name="FaceTec_presession_hold_steady_1">Manténgase quieto durante: 1</string>
+    <string name="FaceTec_presession_hold_steady_2">Manténgase quieto durante: 2</string>
+    <string name="FaceTec_presession_hold_steady_3">Manténgase quieto durante: 3</string>
+    <string name="FaceTec_presession_neutral_expression">Expresión neutra, sin sonreír</string>
+    <string name="FaceTec_presession_position_face_straight_in_oval">Mire hacia el frente</string>
+    <string name="FaceTec_presession_remove_dark_glasses">Quítese los lentes oscuros</string>
+    <string name="FaceTec_result_facescan_upload_message">Subiendo\nel escaneo facial 3D\nencriptado</string>
+    <string name="FaceTec_result_idscan_retry_barcode_not_read_message">No se pudo escanear el código de barras\nInténtelo de nuevo</string>
+    <string name="FaceTec_result_idscan_retry_face_did_not_match_message">El rostro no coincide\nlo suficiente</string>
+    <string name="FaceTec_result_idscan_retry_id_not_fully_visible_message">La identificación\nno es totalmente visible</string>
+    <string name="FaceTec_result_idscan_retry_id_type_not_supported_message">No se admite este tipo de identificación\nUtilice una identificación diferente</string>
+    <string name="FaceTec_result_idscan_retry_ocr_results_not_good_enough_message">El texto de la identificación no es legible</string>
+    <string name="FaceTec_result_idscan_skip_or_error_nfc_message">Información de identificación\nsubida</string>
+    <string name="FaceTec_result_idscan_success_additional_review_message">Captura de la fotografía de identificación\ncompletada</string>
+    <string name="FaceTec_result_idscan_success_back_side_message">Escaneo de identificación completado</string>
+    <string name="FaceTec_result_idscan_success_back_side_nfc_next_message">Reverso de la identificación\nescaneado</string>
+    <string name="FaceTec_result_idscan_success_front_side_back_next_message">Anverso de la identificación\nescaneado</string>
+    <string name="FaceTec_result_idscan_success_front_side_message">Escaneo de identificación completado</string>
+    <string name="FaceTec_result_idscan_success_front_side_nfc_next_message">Anverso de la identificación\nescaneado</string>
+    <string name="FaceTec_result_idscan_success_nfc_message">Escaneo de identificación completado</string>
+    <string name="FaceTec_result_idscan_success_passport_message">Escaneo de pasaporte completado</string>
+    <string name="FaceTec_result_idscan_success_passport_nfc_next_message">Pasaporte escaneado</string>
+    <string name="FaceTec_result_idscan_success_user_confirmation_message">Escaneo de identificación con fotografía\ncompletado</string>
+    <string name="FaceTec_result_idscan_unsuccess_message">La foto de la identificación\no coincide con\el rostro del usuario</string>
+    <string name="FaceTec_result_idscan_upload_message">Subiendo\nel escaneo de identificación\nencriptado</string>
+    <string name="FaceTec_result_nfc_upload_message">Subiendo\nla información NFC\nencriptada</string>
+    <string name="FaceTec_result_success_message">Listo</string>
+    <string name="FaceTec_retry_header">Intentémoslo otra vez</string>
+    <string name="FaceTec_retry_ideal_image_label">Pose ideal</string>
+    <string name="FaceTec_retry_instruction_message_1">Expresión neutra, sin sonreír</string>
+    <string name="FaceTec_retry_instruction_message_2">Use una postura e iluminación ideal</string>
+    <string name="FaceTec_retry_instruction_message_3">Demasiado borrosa, limpie la cámara</string>
+    <string name="FaceTec_retry_subheader_message">Necesitamos una videoselfie más nítida</string>
+    <string name="FaceTec_retry_your_image_label">Su selfie</string>
+    <string msgid="5976598919945601918" name="abc_action_bar_home_description">"Ir a inicio"</string>
+    <string msgid="8388173803310557296" name="abc_action_bar_up_description">"Desplazarse hacia arriba"</string>
+    <string msgid="3937310113216875497" name="abc_action_menu_overflow_description">"Más opciones"</string>
+    <string msgid="4692188335987374352" name="abc_action_mode_done">"Hecho"</string>
+    <string msgid="1189761859438369441" name="abc_activity_chooser_view_see_all">"Ver todo"</string>
+    <string msgid="2165779757652331008" name="abc_activitychooserview_choose_application">"Seleccionar una aplicación"</string>
+    <string msgid="4215997306490295099" name="abc_capital_off">"DESACTIVADO"</string>
+    <string msgid="884982626291842264" name="abc_capital_on">"ACTIVADO"</string>
+    <string msgid="8833365367933412986" name="abc_menu_alt_shortcut_label">"Alt +"</string>
+    <string msgid="2223301931652355242" name="abc_menu_ctrl_shortcut_label">"Ctrl +"</string>
+    <string msgid="838001238306846836" name="abc_menu_delete_shortcut_label">"Suprimir"</string>
+    <string msgid="7986526966204849475" name="abc_menu_enter_shortcut_label">"Intro"</string>
+    <string msgid="375214403600139847" name="abc_menu_function_shortcut_label">"Función +"</string>
+    <string msgid="4192209724446364286" name="abc_menu_meta_shortcut_label">"Meta +"</string>
+    <string msgid="4741552369836443843" name="abc_menu_shift_shortcut_label">"Mayús +"</string>
+    <string msgid="5473865519181928982" name="abc_menu_space_shortcut_label">"Espacio"</string>
+    <string msgid="6180552449598693998" name="abc_menu_sym_shortcut_label">"Sym +"</string>
+    <string msgid="5520303668377388990" name="abc_prepend_shortcut_label">"Menú +"</string>
+    <string msgid="7208076849092622260" name="abc_search_hint">"Buscar…"</string>
+    <string msgid="3741173234950517107" name="abc_searchview_description_clear">"Borrar consulta"</string>
+    <string msgid="693312494995508443" name="abc_searchview_description_query">"Consulta de búsqueda"</string>
+    <string msgid="3417662926640357176" name="abc_searchview_description_search">"Buscar"</string>
+    <string msgid="1486535517437947103" name="abc_searchview_description_submit">"Enviar consulta"</string>
+    <string msgid="2293578557972875415" name="abc_searchview_description_voice">"Búsqueda por voz"</string>
+    <string msgid="8875138169939072951" name="abc_shareactionprovider_share_with">"Compartir con"</string>
+    <string msgid="9055268688411532828" name="abc_shareactionprovider_share_with_application">"Compartir con <ns1:g id="APPLICATION_NAME">%s</ns1:g>"</string>
+    <string msgid="1656852541809559762" name="abc_toolbar_collapse_description">"Ocultar"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Responder"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Vídeo"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Rechazar"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Colgar"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Llamada entrante"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Llamada en curso"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Filtrando una llamada entrante"</string>
+    <string msgid="6264217191555673260" name="search_menu_title">"Buscar"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+</resources>

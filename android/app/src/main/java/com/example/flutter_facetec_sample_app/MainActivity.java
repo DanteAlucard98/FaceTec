@@ -1,6 +1,7 @@
 package com.example.flutter_facetec_sample_app;
 
 import android.content.Context;
+import android.content.Intent;
 import androidx.annotation.NonNull;
 import android.os.Bundle;
 import android.os.Handler;
@@ -37,54 +38,61 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     private static final String CHANNEL = "com.facetec.sdk";
     private static final String PROCESSOR_CHANNEL = "com.facetec.sdk/livenesscheck";
     private static final String PROCESSOR_CHANNEL_IDSCANN = "com.facetec.sdk/idscann";
+    private static final String TAG = "MainActivity";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final long SESSION_RETRY_DELAY = 500;
+    private static final long SELFIE_PROCESSING_TIMEOUT = 10000;
+    private static final long SESSION_RESUME_DELAY = 500;
+    private static final long SESSION_ACTIVITY_CHECK_DELAY = 100;
+    private static final long SURFACE_RECOVERY_DELAY = 200;
+    private static final long TRANSITION_DELAY = 1500;
 
+    // Channels
     private MethodChannel processorChannel;
     private MethodChannel idscannChannel;
-    private FaceTecFaceScanResultCallback faceScanResultCallbackRef;
-    private FaceTecIDScanResultCallback idScanResultCallbackRef;
-    private Handler mainHandler;
+
+    // Session state flags
     private boolean isProcessing = false;
     private boolean isActivityPaused = false;
     private boolean isSessionInProgress = false;
     private boolean isIdScanMode = false;
-
-    private String pendingBackScanSessionToken;
-    private MethodChannel.Result pendingBackScanResult;
-
-    private boolean isBackScanPending = false;
-    private String pendingBackScanToken = null;
-    private boolean shouldLaunchBackScan = false;
-    private boolean isTransitioning = false;
-    private boolean isSurfaceDestroyed = false;
-    private boolean hasWindowFocus = false;
-    private boolean isAppVisible = true;
-    private boolean isActivityStopped = false;
-    private static final int TRANSITION_DELAY = 1500; // Delay to allow activity to fully transition
-
-    private boolean isCameraInitialized = false;
     private boolean isSessionActive = false;
-
+    private boolean isSessionResuming = false;
+    private boolean isSessionActivityAttached = false;
+    private boolean isSurfaceReleased = false;
     private boolean isSurfaceValid = true;
     private boolean isActivityDestroyed = false;
-
-    private static final int MAX_RETRY_ATTEMPTS = 3;
-    private int retryCount = 0;
-    private Handler sessionHandler;
-    private static final long SESSION_RETRY_DELAY = 500; // 500ms delay between retries
-
+    private boolean isAppVisible = true;
+    private boolean isActivityStopped = false;
     private boolean isSelfieProcessing = false;
-    private static final long SELFIE_PROCESSING_TIMEOUT = 10000; // 10 seconds timeout
+    private boolean hasWindowFocus = false;
+    private boolean isCameraInitialized = false;
+    private int retryCount = 0;
+    private boolean isPaused = false;
+    private boolean isStopped = false;
+    private boolean pendingSessionResume = false;
 
-    private boolean isSessionResuming = false;
-    private static final long SESSION_RESUME_DELAY = 500; // 500ms delay for session resume
-    private boolean isSessionActivityAttached = false;
-    private static final long SESSION_ACTIVITY_CHECK_DELAY = 100; // 100ms delay for activity checks
-    private boolean isSurfaceReleased = false;
-    private static final long SURFACE_RECOVERY_DELAY = 200; // 200ms delay for surface recovery
+    // Callbacks and handlers
+    private FaceTecFaceScanResultCallback faceScanResultCallbackRef;
+    private FaceTecIDScanResultCallback idScanResultCallbackRef;
+    private Handler mainHandler;
+    private Handler sessionHandler;
+    private FaceTecSessionResult latestSessionResult;
+    private FaceTecIDScanResult latestIDScanResult;
+    private String latestExternalDatabaseRefID;
+    private Processor currentProcessor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        initializeHandlers();
+        
+        // Preload FaceTec SDK resources
+        FaceTecSDK.preload(this);
+    }
+
+    private void initializeHandlers() {
+        mainHandler = new Handler(Looper.getMainLooper());
         sessionHandler = new Handler(Looper.getMainLooper());
     }
 
@@ -92,10 +100,10 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         hasWindowFocus = hasFocus;
-        Log.d("MainActivity", "Window focus changed: " + hasFocus);
+        Log.d(TAG, "Window focus changed: " + hasFocus);
         
-        if (hasFocus && isSessionInProgress && !isSessionActive && !isSessionResuming) {
-            Log.d("MainActivity", "Window focus gained, attempting to resume session");
+        if (hasFocus && isSessionInProgress && !isSessionActive && !isSessionResuming && pendingSessionResume) {
+            Log.d(TAG, "Window focus gained, attempting to resume session");
             isSessionResuming = true;
             retryResumeSession();
         }
@@ -104,99 +112,29 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d("MainActivity", "onResume called");
-        isActivityPaused = false;
-        isAppVisible = true;
-        isActivityStopped = false;
-        isSurfaceValid = true;
-        isSurfaceReleased = false;
+        Log.d(TAG, "onResume called");
         
-        // If we have a pending session, try to resume it with retry mechanism
-        if (isSessionInProgress && !isProcessing && !isSessionResuming) {
-            Log.d("MainActivity", "Attempting to resume pending session");
-            isSessionResuming = true;
-            retryResumeSession();
+        if (!isSessionInProgress) {
+            updateActivityState(true);
         }
-    }
-
-    private void retryResumeSession() {
-        if (retryCount >= MAX_RETRY_ATTEMPTS) {
-            Log.e("MainActivity", "Max retry attempts reached, cleaning up session");
-            isSessionResuming = false;
-            cleanupCallbacks();
-            return;
-        }
-
-        retryCount++;
-        Log.d("MainActivity", "Retry attempt " + retryCount + " of " + MAX_RETRY_ATTEMPTS);
-
-        // Check if surface was released
-        if (isSurfaceReleased) {
-            Log.d("MainActivity", "Surface was released, attempting to recover");
-            recoverSurface();
-            return;
-        }
-
-        // Check if FaceTecSessionActivity is still attached
-        if (!isSessionActivityAttached) {
-            Log.d("MainActivity", "Session activity not attached, attempting to reattach");
-            reattachSessionActivity();
-            return;
-        }
-
-        sessionHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (!isActivityPaused && !isActivityDestroyed && hasWindowFocus && isSessionActivityAttached && !isSurfaceReleased) {
-                    isProcessing = true;
-                    isSessionActive = true;
-                    isSessionResuming = false;
-                    Log.d("MainActivity", "Session resumed successfully");
-                } else {
-                    Log.d("MainActivity", "Activity not ready for session resume, will retry");
-                    retryResumeSession();
-                }
-            }
-        }, SESSION_RESUME_DELAY);
-    }
-
-    private void recoverSurface() {
-        if (isSessionInProgress && isSurfaceReleased) {
-            Log.d("MainActivity", "Attempting to recover surface");
-            sessionHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        // Force a layout update to recreate the surface
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                View decorView = getWindow().getDecorView();
-                                decorView.requestLayout();
-                                decorView.invalidate();
-                                isSurfaceReleased = false;
-                                Log.d("MainActivity", "Surface recovery initiated");
-                            }
-                        });
-                    } catch (Exception e) {
-                        Log.e("MainActivity", "Error recovering surface: " + e.getMessage());
-                        isSurfaceReleased = true;
-                        cleanupCallbacks();
-                    }
-                }
-            }, SURFACE_RECOVERY_DELAY);
+        
+        if (shouldResumeSession()) {
+            resumeSession();
         }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        Log.d("MainActivity", "onPause called");
-        isActivityPaused = true;
-        isAppVisible = false;
+        Log.d(TAG, "onPause called");
         
-        // Only cleanup if we're not in the middle of a session or resuming
-        if (!isSessionInProgress || (!isSessionActive && !isSessionResuming)) {
+        isPaused = true;
+        if (!isSessionInProgress) {
+            updateActivityState(false);
+        }
+        
+        // Don't cleanup callbacks if session is in progress
+        if (!isSessionInProgress && shouldCleanupCallbacks()) {
             cleanupCallbacks();
         }
     }
@@ -204,11 +142,15 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     @Override
     protected void onStop() {
         super.onStop();
-        Log.d("MainActivity", "onStop called");
-        isActivityStopped = true;
+        Log.d(TAG, "onStop called");
         
-        // Only cleanup if we're not in the middle of a session or resuming
-        if (!isSessionInProgress || (!isSessionActive && !isSessionResuming)) {
+        isStopped = true;
+        if (!isSessionInProgress) {
+            isActivityStopped = true;
+        }
+        
+        // Don't cleanup callbacks if session is in progress
+        if (!isSessionInProgress && shouldCleanupCallbacks()) {
             cleanupCallbacks();
         }
     }
@@ -216,83 +158,154 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     @Override
     protected void onStart() {
         super.onStart();
-        Log.d("MainActivity", "onStart called");
-        isActivityStopped = false;
+        Log.d(TAG, "onStart called");
+        
+        if (!isSessionInProgress) {
+            isActivityStopped = false;
+            isAppVisible = true;
+        }
+        
+        if (shouldResumeSession()) {
+            resumeSession();
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.d("MainActivity", "onDestroy called");
+        Log.d(TAG, "onDestroy called");
         isActivityDestroyed = true;
-        sessionHandler.removeCallbacksAndMessages(null);
-        if (!isSessionInProgress || !isSessionActive) {
+        cleanupHandlers();
+        
+        if (shouldCleanupCallbacks()) {
             cleanupCallbacks();
         }
-        mainHandler.removeCallbacksAndMessages(null);
     }
 
-    private FaceTecCustomization getCurrentCustomization() {
-        FaceTecCustomization customization = new FaceTecCustomization();
-        
-        // Set branding image
-        customization.getOverlayCustomization().brandingImage = R.drawable.flutter_logo;
-        
-        // Configure ID scan specific settings
-        customization.getIdScanCustomization().showSelectionScreenDocumentImage = true;
-        customization.getIdScanCustomization().captureScreenBackgroundColor = android.graphics.Color.WHITE;
-        customization.getIdScanCustomization().buttonBackgroundNormalColor = android.graphics.Color.BLACK;
-        customization.getIdScanCustomization().buttonTextNormalColor = android.graphics.Color.WHITE;
-        customization.getIdScanCustomization().buttonTextHighlightColor = android.graphics.Color.WHITE;
+    private void updateActivityState(boolean isActive) {
+        if (!isSessionInProgress) {
+            isActivityPaused = !isActive;
+            isAppVisible = isActive;
+            isSurfaceValid = isActive;
+            isSurfaceReleased = !isActive;
+        }
+    }
 
-        // Configure upload messages
-        FaceTecCustomization.setIDScanUploadMessageOverrides(
-            "Uploading\nEncrypted\nID Scan", // Upload of ID front-side has started
-            "Still Uploading...\nSlow Connection", // Upload of ID front-side is still uploading
-            "Upload Complete", // Upload of ID front-side is complete
-            "Processing ID Scan", // Processing front-side
-            "Uploading\nEncrypted\nBack of ID", // Upload of ID back-side has started
-            "Still Uploading...\nSlow Connection", // Upload of ID back-side is still uploading
-            "Upload Complete", // Upload of ID back-side is complete
-            "Processing Back of ID", // Processing back-side
-            "Saving\nYour Info", // Saving user info
-            "Still Uploading...\nSlow Connection", // Still saving
-            "Info Saved", // Info saved
-            "Processing", // Processing info
-            "Uploading\nID Details", // Uploading ID details
-            "Still Uploading...\nSlow Connection", // Still uploading details
-            "Upload Complete", // Upload complete
-            "Processing\nID Details", // Processing details
-            "Uploading\nNFC Data", // Uploading NFC data
-            "Still Uploading...\nSlow Connection", // Still uploading NFC
-            "Upload Complete", // NFC upload complete
-            "Processing\nNFC Data" // Processing NFC data
-        );
+    private boolean shouldResumeSession() {
+        return isSessionInProgress && !isSessionActive && !isActivityDestroyed && !isActivityStopped && !isActivityPaused;
+    }
 
-        // Configure result screen messages
-        FaceTecCustomization.setIDScanResultScreenMessageOverrides(
-            "Front Scan Complete", // Front scan complete (no back)
-            "Front of ID\nScanned", // Front scan complete (has back)
-            "Front of ID\nScanned", // Front scan complete (has NFC)
-            "ID Scan Complete", // Back scan complete (no NFC)
-            "Back of ID\nScanned", // Back scan complete (has NFC)
-            "Passport Scan\nComplete", // Passport scan complete
-            "Passport Scanned", // Passport scanned (has NFC)
-            "Photo ID Scan\nComplete", // Final scan complete
-            "ID Scan Complete", // NFC scan complete
-            "ID Photo\nComplete", // Review required
-            "Face Not\nMatched", // Face match failed
-            "ID Not\nVisible", // ID not visible
-            "Text Not\nLegible", // Text not legible
-            "ID Type\nMismatch", // ID type mismatch
-            "ID Details\nUploaded" // NFC skipped
+    private boolean shouldCleanupCallbacks() {
+        return !isSessionInProgress || (!isSessionActive && !isSessionResuming);
+    }
+
+    private void cleanupHandlers() {
+        if (sessionHandler != null) {
+            sessionHandler.removeCallbacksAndMessages(null);
+        }
+        if (mainHandler != null) {
+            mainHandler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    private void startIDScan() {
+        if (!canStartSession()) {
+            Log.d(TAG, "Cannot start session - activity not ready");
+            return;
+        }
+
+        // Get session token from Flutter
+        idscannChannel.invokeMethod("getSessionToken", null, new MethodChannel.Result() {
+            @Override
+            public void success(Object result) {
+                if (result instanceof String) {
+                    String sessionToken = (String) result;
+                    // Create and start the ID scan processor
+                    new PhotoIDScanProcessor(sessionToken, MainActivity.this, idscannChannel);
+                } else {
+                    Log.e(TAG, "Invalid session token received from Flutter");
+                }
+            }
+
+            @Override
+            public void error(String errorCode, String errorMessage, Object errorDetails) {
+                Log.e(TAG, "Error getting session token: " + errorCode + " - " + errorMessage);
+            }
+
+            @Override
+            public void notImplemented() {
+                Log.e(TAG, "getSessionToken method not implemented in Flutter");
+            }
+        });
+    }
+
+    private boolean canStartSession() {
+        return !isPaused && !isStopped && hasWindowFocus;
+    }
+
+    private void initializeSessionState() {
+        isIdScanMode = true;
+        isSessionInProgress = true;
+        isSessionActive = true;
+        isProcessing = false;
+        isCameraInitialized = false;
+        isSurfaceValid = true;
+        isSessionActivityAttached = false;
+        isSurfaceReleased = false;
+        retryCount = 0;
+    }
+
+    private void configureSession() {
+        FaceTecSDK.setCustomization(getCurrentCustomization());
+    }
+
+    private void launchSession(String sessionToken) {
+        FaceTecSessionActivity.createAndLaunchSession(
+            (Context)this, 
+            (FaceTecIDScanProcessor)this, 
+            sessionToken
         );
+    }
+
+    private void handleSessionError(Exception e) {
+        isSessionInProgress = false;
+        isSessionActive = false;
+        cleanupCallbacks();
+    }
+
+    private void resumeSession() {
+        if (sessionHandler != null) {
+            sessionHandler.removeCallbacksAndMessages(null);
+        }
         
-        return customization;
+        sessionHandler = new Handler(Looper.getMainLooper());
+        sessionHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (canResumeSession()) {
+                    Log.d(TAG, "Resuming session");
+                    isSessionResuming = true;
+                    resumeSessionCallback();
+                    isSessionResuming = false;
+                }
+            }
+        }, TRANSITION_DELAY);
+    }
+
+    private boolean canResumeSession() {
+        return !isPaused && !isStopped && hasWindowFocus;
+    }
+
+    private void resumeSessionCallback() {
+        if (isIdScanMode && idScanResultCallbackRef != null) {
+            idScanResultCallbackRef.proceedToNextStep(null);
+        } else if (faceScanResultCallbackRef != null) {
+            faceScanResultCallbackRef.proceedToNextStep(null);
+        }
     }
 
     private void cleanupCallbacks() {
-        Log.d("MainActivity", "cleanupCallbacks called - isSessionInProgress: " + isSessionInProgress + 
+        Log.d(TAG, "cleanupCallbacks called - isSessionInProgress: " + isSessionInProgress + 
               ", isSessionActive: " + isSessionActive + 
               ", isSurfaceValid: " + isSurfaceValid +
               ", isSelfieProcessing: " + isSelfieProcessing +
@@ -300,26 +313,49 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
               ", isSessionActivityAttached: " + isSessionActivityAttached +
               ", isSurfaceReleased: " + isSurfaceReleased);
               
-        sessionHandler.removeCallbacksAndMessages(null);
-        mainHandler.removeCallbacksAndMessages(null);
-        
+        if (shouldCleanupCallbacks()) {
+            cleanupHandlers();
+            cleanupCallbacksOnUiThread();
+            resetSessionState();
+        }
+    }
+
+    private void cleanupCallbacksOnUiThread() {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (faceScanResultCallbackRef != null && (!isSessionInProgress || !isSessionActive || !isSurfaceValid || !isSelfieProcessing) && !isSessionResuming) {
-                    Log.d("MainActivity", "Cleaning up face scan callback");
-                    faceScanResultCallbackRef.cancel();
-                    faceScanResultCallbackRef = null;
-                }
-                if (idScanResultCallbackRef != null && (!isSessionInProgress || !isSessionActive || !isSurfaceValid) && !isSessionResuming) {
-                    Log.d("MainActivity", "Cleaning up ID scan callback");
-                    idScanResultCallbackRef.cancel();
-                    idScanResultCallbackRef = null;
-                }
+                cleanupFaceScanCallback();
+                cleanupIDScanCallback();
             }
         });
-        
-        if (!isSessionInProgress || (!isSessionActive && !isSessionResuming) || !isSurfaceValid) {
+    }
+
+    private void cleanupFaceScanCallback() {
+        if (faceScanResultCallbackRef != null && shouldCleanupFaceScan()) {
+            Log.d(TAG, "Cleaning up face scan callback");
+            faceScanResultCallbackRef.cancel();
+            faceScanResultCallbackRef = null;
+        }
+    }
+
+    private boolean shouldCleanupFaceScan() {
+        return !isSessionInProgress || !isSessionActive || !isSurfaceValid || !isSelfieProcessing || !isSessionResuming;
+    }
+
+    private void cleanupIDScanCallback() {
+        if (idScanResultCallbackRef != null && shouldCleanupIDScan()) {
+            Log.d(TAG, "Cleaning up ID scan callback");
+            idScanResultCallbackRef.cancel();
+            idScanResultCallbackRef = null;
+        }
+    }
+
+    private boolean shouldCleanupIDScan() {
+        return !isSessionInProgress || !isSessionActive || !isSurfaceValid || !isSessionResuming;
+    }
+
+    private void resetSessionState() {
+        if (shouldResetSessionState()) {
             isProcessing = false;
             isIdScanMode = false;
             isCameraInitialized = false;
@@ -329,6 +365,10 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
             isSurfaceReleased = true;
             retryCount = 0;
         }
+    }
+
+    private boolean shouldResetSessionState() {
+        return !isSessionInProgress || (!isSessionActive && !isSessionResuming) || !isSurfaceValid;
     }
 
     @Override
@@ -345,6 +385,25 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         SDKChannel.setMethodCallHandler(this::receivedFaceTecSDKMethodCall);
         processorChannel.setMethodCallHandler(this::receivedLivenessCheckProcessorCall);
         idscannChannel.setMethodCallHandler(this::receivedIdscannProcessorCall);
+
+        setupMethodChannel();
+    }
+
+    private void setupMethodChannel() {
+        MethodChannel channel = new MethodChannel(getFlutterEngine().getDartExecutor().getBinaryMessenger(), "flutter_facetec_sample_app");
+        channel.setMethodCallHandler((call, result) -> {
+            if (call.method.equals("startPhotoIDScan")) {
+                String sessionToken = call.argument("sessionToken");
+                if (sessionToken != null) {
+                    new PhotoIDMatchProcessor(sessionToken, this, processorChannel);
+                    result.success(null);
+                } else {
+                    result.error("INVALID_ARGUMENT", "Session token is required", null);
+                }
+            } else {
+                result.notImplemented();
+            }
+        });
     }
 
     private void receivedFaceTecSDKMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
@@ -376,7 +435,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
             case "startIdscann":
                 if (call.hasArgument("sessionToken")) {
                     String sessionToken = call.argument("sessionToken");
-                    startIdscann(call, sessionToken, result);
+                    startIDScan();
                 }
                 else {
                     result.error("InvalidArguments", "Missing sessionToken", null);
@@ -410,7 +469,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         // Currently there is only one method needed, but your processor code may require
         // more communication between dart and native code. If so, you may want to implement
         // any processor code and then receive the results and handle updating logic or run code on completion here.
-        Log.d("MainActivity", "call.method is " + call.method);
+        Log.d(TAG, "call.method is " + call.method);
         switch (call.method) {
             case "cancelFaceScan":
                 cancelFaceScan();
@@ -475,34 +534,6 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         result.success(true);
     }
 
-    private void startIdscann(MethodCall call, String sessionToken, MethodChannel.Result result) {
-        if (isActivityPaused && !isSessionInProgress) {
-            result.error("SESSION_ERROR", "Activity is paused", null);
-            return;
-        }
-        
-        isIdScanMode = true;
-        isSessionInProgress = true;
-        
-        // Apply customization before starting session
-        FaceTecSDK.setCustomization(getCurrentCustomization());
-        
-        // Launch the session
-        try {
-            FaceTecSessionActivity.createAndLaunchSession(
-                (Context)this, 
-                (FaceTecIDScanProcessor)this, 
-                sessionToken
-            );
-            result.success(true);
-        } catch (Exception e) {
-            Log.e("MainActivity", "Error launching ID scan session: " + e.getMessage());
-            result.error("SESSION_ERROR", e.getMessage(), null);
-            isSessionInProgress = false;
-            cleanupCallbacks();
-        }
-    }
-
     private void startMatchIdScan(String sessionToken, MethodChannel.Result result) {
         if (isActivityPaused && !isSessionInProgress) {
             result.error("SESSION_ERROR", "Activity is paused", null);
@@ -517,7 +548,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         // Reset retry count for new session
         retryCount = 0;
         
-        Log.d("MainActivity", "Starting match ID scan with token: " + sessionToken);
+        Log.d(TAG, "Starting match ID scan with token: " + sessionToken);
         isIdScanMode = true;
         isSessionInProgress = true;
         isSessionActive = true;
@@ -531,13 +562,13 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         FaceTecSDK.setCustomization(getCurrentCustomization());
         
         try {
-            Log.d("MainActivity", "Creating and launching match ID scan session");
+            Log.d(TAG, "Creating and launching match ID scan session");
             
             // Create and launch the PhotoIDMatchProcessor
-            new PhotoIDMatchProcessor(sessionToken, this, processorChannel, idscannChannel);
+            new PhotoIDMatchProcessor(sessionToken, this, processorChannel);
             result.success(true);
         } catch (Exception e) {
-            Log.e("MainActivity", "Error launching match ID scan session: " + e.getMessage());
+            Log.e(TAG, "Error launching match ID scan session: " + e.getMessage());
             result.error("SESSION_ERROR", e.getMessage(), null);
             isSessionInProgress = false;
             isSessionActive = false;
@@ -555,13 +586,14 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
             }
             return;
         }
+        
         isProcessing = true;
         idScanResultCallbackRef = idScanResultCallback;
+        latestIDScanResult = idScanResult;
 
-        // IMPORTANT: FaceTecIDScanStatus.SUCCESS does not mean the IDScan was successful,
-        // it simply means the User completed the Session. Processing still needs to be performed.
+        // Handle early exit scenarios
         if(idScanResult.getStatus() != FaceTecIDScanStatus.SUCCESS) {
-            Log.d("MainActivity", "Session was not completed successfully, cancelling.");
+            Log.d(TAG, "Session was not completed successfully, cancelling.");
             cleanupCallbacks();
             return;
         }
@@ -580,6 +612,49 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                 parameters.put("idScanBackImage", backImagesCompressedBase64.get(0));
             }
 
+            // Configure upload messages before starting the process
+            FaceTecCustomization.setIDScanUploadMessageOverrides(
+                "Uploading\nEncrypted\nID Scan",
+                "Still Uploading...\nSlow Connection",
+                "Upload Complete",
+                "Processing ID Scan",
+                "Uploading\nEncrypted\nBack of ID",
+                "Still Uploading...\nSlow Connection",
+                "Upload Complete",
+                "Processing Back of ID",
+                "Saving\nYour Confirmed Info",
+                "Still Uploading...\nSlow Connection",
+                "Info Saved",
+                "Processing",
+                "Uploading Encrypted\nNFC Details",
+                "Still Uploading...\nSlow Connection",
+                "Upload Complete",
+                "Processing\nNFC Details",
+                "Uploading Encrypted\nID Details",
+                "Still Uploading...\nSlow Connection",
+                "Upload Complete",
+                "Processing\nID Details"
+            );
+
+            // Configure result screen messages before proceeding
+            FaceTecCustomization.setIDScanResultScreenMessageOverrides(
+                "Front Scan Complete",
+                "Front of ID\nScanned",
+                "Front of ID\nScanned",
+                "ID Scan Complete",
+                "Back of ID\nScanned",
+                "Passport Scan Complete",
+                "Passport Scanned",
+                "Photo ID Scan\nComplete",
+                "ID Scan Complete",
+                "ID Photo Capture\nComplete",
+                "Face Didn't Match\nHighly Enough",
+                "ID Document\nNot Fully Visible",
+                "ID Text Not Legible",
+                "ID Type Mismatch\nPlease Try Again",
+                "ID Details\nUploaded"
+            );
+
             // Prepare arguments to send to Flutter
             final Map<String, Object> args = new HashMap<>();
             args.put("status", "sessionCompletedSuccessfully");
@@ -595,27 +670,11 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                 args.put("idScanBackImage", backImagesCompressedBase64.get(0));
             }
 
-            // Simulate a progressive upload to update the Progress Bar appropriately
-            idScanResultCallback.uploadProgress(0);
-
             // Send data to Flutter for processing
             mainHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        // Simulate upload progress (this would normally happen during API communication)
-                        for (int i = 0; i < 100; i += 20) {
-                            final int progress = i;
-                            mainHandler.postDelayed(new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (idScanResultCallbackRef != null) {
-                                        idScanResultCallbackRef.uploadProgress(progress);
-                                    }
-                                }
-                            }, i * 10);
-                        }
-
                         // Send session data to Flutter and wait for response
                         idscannChannel.invokeMethod("processSession", args, new MethodChannel.Result() {
                             @Override
@@ -638,25 +697,28 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                                         }
                                         
                                         String responseString = responseJSON.toString();
-                                        Log.d("MainActivity", "Using response: " + responseString);
+                                        Log.d(TAG, "Using response: " + responseString);
                                         
                                         // Complete the progress bar
-                                        idScanResultCallbackRef.uploadProgress(1);
-                                        
-                                        // Proceed to next step with the scan result
-                                        boolean success = idScanResultCallbackRef.proceedToNextStep(responseString);
-                                        
-                                        if (success) {
-                                            Log.d("MainActivity", "Successfully proceeded to next step");
-                                        } else {
-                                            Log.d("MainActivity", "Failed to proceed to next step");
+                                        if (idScanResultCallbackRef != null) {
+                                            idScanResultCallbackRef.uploadProgress(1);
+                                            
+                                            // Proceed to next step with the scan result
+                                            boolean success = idScanResultCallbackRef.proceedToNextStep(responseString);
+                                            
+                                            if (success) {
+                                                Log.d(TAG, "Successfully proceeded to next step");
+                                            } else {
+                                                Log.d(TAG, "Failed to proceed to next step");
+                                                cleanupCallbacks();
+                                            }
                                         }
                                     } else {
                                         // Handle case where Flutter returns something other than a Map
                                         defaultResponse();
                                     }
                                 } catch (Exception e) {
-                                    Log.e("MainActivity", "Error handling Flutter response: " + e.getMessage());
+                                    Log.e(TAG, "Error handling Flutter response: " + e.getMessage());
                                     e.printStackTrace();
                                     defaultResponse();
                                 }
@@ -664,13 +726,13 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
 
                             @Override
                             public void error(String errorCode, String errorMessage, Object errorDetails) {
-                                Log.e("MainActivity", "Flutter returned error: " + errorCode + " - " + errorMessage);
+                                Log.e(TAG, "Flutter returned error: " + errorCode + " - " + errorMessage);
                                 defaultResponse();
                             }
 
                             @Override
                             public void notImplemented() {
-                                Log.e("MainActivity", "Method not implemented in Flutter");
+                                Log.e(TAG, "Method not implemented in Flutter");
                                 defaultResponse();
                             }
                             
@@ -682,53 +744,27 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                                     fallbackResponse.put("error", false);
                                     fallbackResponse.put("scanResultBlob", parameters.toString());
                                     
-                                    idScanResultCallbackRef.uploadProgress(1);
-                                    idScanResultCallbackRef.proceedToNextStep(fallbackResponse.toString());
+                                    if (idScanResultCallbackRef != null) {
+                                        idScanResultCallbackRef.uploadProgress(1);
+                                        idScanResultCallbackRef.proceedToNextStep(fallbackResponse.toString());
+                                    }
                                 } catch (Exception ex) {
-                                    Log.e("MainActivity", "Fallback response failed: " + ex.getMessage());
+                                    Log.e(TAG, "Fallback response failed: " + ex.getMessage());
                                     cleanupCallbacks();
                                 }
                             }
                         });
                     } catch (Exception e) {
-                        Log.e("MainActivity", "Error in ID scan processing: " + e.getMessage());
+                        Log.e(TAG, "Error in ID scan processing: " + e.getMessage());
                         e.printStackTrace();
-                        if (idScanResultCallbackRef != null) {
-                            try {
-                                // Create fallback response in the same format
-                                JSONObject fallbackResponse = new JSONObject();
-                                fallbackResponse.put("wasProcessed", true);
-                                fallbackResponse.put("error", false);
-                                fallbackResponse.put("scanResultBlob", "{}");
-                                idScanResultCallbackRef.proceedToNextStep(fallbackResponse.toString());
-                            } catch (Exception ex) {
-                                Log.e("MainActivity", "Fallback response failed: " + ex.getMessage());
-                            }
-                        }
-                        isSessionInProgress = false;
-                        isSessionActive = false;
                         cleanupCallbacks();
                     }
                 }
             });
 
         } catch (Exception e) {
-            Log.e("MainActivity", "Error processing ID scan: " + e.getMessage());
+            Log.e(TAG, "Error processing ID scan: " + e.getMessage());
             e.printStackTrace();
-            if (idScanResultCallbackRef != null) {
-                try {
-                    // Create fallback response in the same format
-                    JSONObject fallbackResponse = new JSONObject();
-                    fallbackResponse.put("wasProcessed", true);
-                    fallbackResponse.put("error", false);
-                    fallbackResponse.put("scanResultBlob", "{}");
-                    idScanResultCallbackRef.proceedToNextStep(fallbackResponse.toString());
-                } catch (Exception ex) {
-                    Log.e("MainActivity", "Fallback response failed: " + ex.getMessage());
-                }
-            }
-            isSessionInProgress = false;
-            isSessionActive = false;
             cleanupCallbacks();
         }
     }
@@ -750,7 +786,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
             faceScanResultCallbackRef = faceScanResultCallback;
 
             if (sessionResult.getStatus() != FaceTecSessionStatus.SESSION_COMPLETED_SUCCESSFULLY) {
-                Log.d("MainActivity", "Status was not successful, status: " + sessionResult.getStatus());
+                Log.d(TAG, "Status was not successful, status: " + sessionResult.getStatus());
                 isSessionActive = false;
                 cleanupCallbacks();
                 return;
@@ -776,11 +812,11 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                         try {
                             if (!isActivityPaused && faceScanResultCallbackRef != null) {
                                 processorChannel.invokeMethod("processSession", args);
-                                Log.d("MainActivity", "Liveness check successful, proceeding with response");
+                                Log.d(TAG, "Liveness check successful, proceeding with response");
                                 faceScanResultCallbackRef.proceedToNextStep(successResponse);
                             }
                         } catch (Exception e) {
-                            Log.e("MainActivity", "Error in liveness processing: " + e.getMessage());
+                            Log.e(TAG, "Error in liveness processing: " + e.getMessage());
                             e.printStackTrace();
                         } finally {
                             cleanupCallbacks();
@@ -788,7 +824,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                     }
                 });
             } catch (Exception e) {
-                Log.e("MainActivity", "Error processing liveness check: " + e.getMessage());
+                Log.e(TAG, "Error processing liveness check: " + e.getMessage());
                 e.printStackTrace();
                 cleanupCallbacks();
             }
@@ -809,7 +845,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         faceScanResultCallbackRef = faceScanResultCallback;
 
         if (sessionResult.getStatus() != FaceTecSessionStatus.SESSION_COMPLETED_SUCCESSFULLY) {
-            Log.d("MainActivity", "Face scan session was not completed successfully");
+            Log.d(TAG, "Face scan session was not completed successfully");
             isSessionActive = false;
             isSelfieProcessing = false;
             cleanupCallbacks();
@@ -831,7 +867,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                 @Override
                 public void run() {
                     if (isSelfieProcessing) {
-                        Log.e("MainActivity", "Selfie processing timeout reached");
+                        Log.e(TAG, "Selfie processing timeout reached");
                         isSelfieProcessing = false;
                         if (faceScanResultCallbackRef != null) {
                             faceScanResultCallbackRef.cancel();
@@ -856,63 +892,71 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                                         
                                         if (scanResultBlob != null && faceScanResultCallbackRef != null) {
                                             isSelfieProcessing = false;
+                                            // Don't cleanup callbacks here to allow ID scan to start
                                             faceScanResultCallbackRef.proceedToNextStep(scanResultBlob);
                                         } else {
                                             isSelfieProcessing = false;
                                             faceScanResultCallbackRef.cancel();
+                                            cleanupCallbacks();
                                         }
                                     } else {
                                         isSelfieProcessing = false;
                                         faceScanResultCallbackRef.cancel();
+                                        cleanupCallbacks();
                                     }
                                 } catch (Exception e) {
-                                    Log.e("MainActivity", "Error processing face scan result: " + e.getMessage());
+                                    Log.e(TAG, "Error processing face scan result: " + e.getMessage());
                                     isSelfieProcessing = false;
                                     if (faceScanResultCallbackRef != null) {
                                         faceScanResultCallbackRef.cancel();
                                     }
+                                    cleanupCallbacks();
                                 }
                             }
 
                             @Override
                             public void error(String errorCode, String errorMessage, Object errorDetails) {
-                                Log.e("MainActivity", "Error from Flutter: " + errorCode + " - " + errorMessage);
+                                Log.e(TAG, "Error from Flutter: " + errorCode + " - " + errorMessage);
                                 isSelfieProcessing = false;
                                 if (faceScanResultCallbackRef != null) {
                                     faceScanResultCallbackRef.cancel();
                                 }
+                                cleanupCallbacks();
                             }
 
                             @Override
                             public void notImplemented() {
-                                Log.e("MainActivity", "Method not implemented in Flutter");
+                                Log.e(TAG, "Method not implemented in Flutter");
                                 isSelfieProcessing = false;
                                 if (faceScanResultCallbackRef != null) {
                                     faceScanResultCallbackRef.cancel();
                                 }
+                                cleanupCallbacks();
                             }
                         });
                     } catch (Exception e) {
-                        Log.e("MainActivity", "Error in face scan processing: " + e.getMessage());
+                        Log.e(TAG, "Error in face scan processing: " + e.getMessage());
                         isSelfieProcessing = false;
                         if (faceScanResultCallbackRef != null) {
                             faceScanResultCallbackRef.cancel();
                         }
+                        cleanupCallbacks();
                     }
                 }
             });
         } catch (Exception e) {
-            Log.e("MainActivity", "Error processing face scan: " + e.getMessage());
+            Log.e(TAG, "Error processing face scan: " + e.getMessage());
             isSelfieProcessing = false;
             if (faceScanResultCallbackRef != null) {
                 faceScanResultCallbackRef.cancel();
             }
+            cleanupCallbacks();
         }
     }
 
     // Called when FaceTec SDK is completely done
     public void onFaceTecSDKCompletelyDone() {
-        Log.d("MainActivity", "onFaceTecSDKCompletelyDone called - isSessionInProgress: " + isSessionInProgress + 
+        Log.d(TAG, "onFaceTecSDKCompletelyDone called - isSessionInProgress: " + isSessionInProgress + 
               ", isSessionActive: " + isSessionActive + 
               ", isSurfaceValid: " + isSurfaceValid +
               ", isSessionResuming: " + isSessionResuming +
@@ -928,7 +972,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     }
 
     private void cancelFaceScan() {
-        Log.e("MainActivity", "Face Scan result cancelled");
+        Log.e(TAG, "Face Scan result cancelled");
         cleanupCallbacks();
     }
 
@@ -940,20 +984,20 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
             response.put("scanResultBlob", "{}");
             return response.toString();
         } catch (JSONException e) {
-            Log.e("MainActivity", "Error creating success response: " + e.getMessage());
+            Log.e(TAG, "Error creating success response: " + e.getMessage());
             return "{\"wasProcessed\":true,\"error\":false,\"scanResultBlob\":\"{}\"}";
         }
     }
 
     private void onScanResultBlobReceived(String scanResultBlob) {
-        Log.d("MainActivity", "onScanResultBlobReceived: Processing scan result");
+        Log.d(TAG, "onScanResultBlobReceived: Processing scan result");
         
         if (isIdScanMode) {
             if (idScanResultCallbackRef != null) {
-                Log.d("MainActivity", "Proceeding with ID scan result");
+                Log.d(TAG, "Proceeding with ID scan result");
                 try {
                     String response = createSuccessResponse();
-                    Log.d("MainActivity", "Using formatted response: " + response);
+                    Log.d(TAG, "Using formatted response: " + response);
                     idScanResultCallbackRef.proceedToNextStep(response);
                     
                     // Only clean up if we're not expecting a back scan
@@ -961,30 +1005,30 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                         idScanResultCallbackRef = null;
                     }
                 } catch (Exception e) {
-                    Log.e("MainActivity", "Error proceeding with ID scan: " + e.getMessage());
+                    Log.e(TAG, "Error proceeding with ID scan: " + e.getMessage());
                     try {
                         String simpleResponse = createSuccessResponse();
                         idScanResultCallbackRef.proceedToNextStep(simpleResponse);
                     } catch (Exception ex) {
-                        Log.e("MainActivity", "Fallback response failed: " + ex.getMessage());
+                        Log.e(TAG, "Fallback response failed: " + ex.getMessage());
                         idScanResultCallbackRef = null;
                     }
                 }
             }
         } else {
             if (faceScanResultCallbackRef != null) {
-                Log.d("MainActivity", "Proceeding with face scan result");
+                Log.d(TAG, "Proceeding with face scan result");
                 try {
                     String response = createSuccessResponse();
-                    Log.d("MainActivity", "Using formatted response: " + response);
+                    Log.d(TAG, "Using formatted response: " + response);
                     faceScanResultCallbackRef.proceedToNextStep(response);
                 } catch (Exception e) {
-                    Log.e("MainActivity", "Error proceeding with face scan: " + e.getMessage());
+                    Log.e(TAG, "Error proceeding with face scan: " + e.getMessage());
                     try {
                         String simpleResponse = createSuccessResponse();
                         faceScanResultCallbackRef.proceedToNextStep(simpleResponse);
                     } catch (Exception ex) {
-                        Log.e("MainActivity", "Fallback response failed: " + ex.getMessage());
+                        Log.e(TAG, "Fallback response failed: " + ex.getMessage());
                     }
                 }
                 faceScanResultCallbackRef = null;
@@ -993,7 +1037,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         
         // Only mark session as completed if we're not transitioning to back scan
         if (!isIdScanMode || !isSessionInProgress) {
-            Log.d("MainActivity", "Scan completed, cleaning up session");
+            Log.d(TAG, "Scan completed, cleaning up session");
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -1006,14 +1050,14 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
 
     private void onScanResultUploadDelay(String uploadMessage) {
         // Handle if there is a long delay in uploading the face scan to the server
-        Log.d("MainActivity", "Face Scan taking longer than usual, adding upload delay message.");
+        Log.d(TAG, "Face Scan taking longer than usual, adding upload delay message.");
         if (faceScanResultCallbackRef != null) {
             faceScanResultCallbackRef.uploadMessageOverride(uploadMessage);
         }
     }
 
     private void receivedIdscannProcessorCall(MethodCall call, MethodChannel.Result result) {
-        Log.d("MainActivity", "call.method is " + call.method);
+        Log.d(TAG, "call.method is " + call.method);
         switch (call.method) {
             case "cancelSession":
                 cleanupCallbacks();
@@ -1025,7 +1069,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                 break;
             case "onScanResultBlobReceived":
                 if (call.hasArgument("scanResultBlob")) {
-                    Log.d("MainActivity", "Received scan result blob from Flutter");
+                    Log.d(TAG, "Received scan result blob from Flutter");
                     onScanResultBlobReceived(call.argument("scanResultBlob"));
                     result.success(true);
                 } else {
@@ -1047,7 +1091,7 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
 
     private void reattachSessionActivity() {
         if (isSessionInProgress && !isSessionActivityAttached) {
-            Log.d("MainActivity", "Attempting to reattach session activity");
+            Log.d(TAG, "Attempting to reattach session activity");
             sessionHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -1060,16 +1104,260 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
                                 decorView.requestLayout();
                                 decorView.invalidate();
                                 isSessionActivityAttached = true;
-                                Log.d("MainActivity", "Session activity reattachment initiated");
+                                Log.d(TAG, "Session activity reattachment initiated");
+                                
+                                // Try to resume the session after reattachment
+                                if (isSessionInProgress && !isSessionActive) {
+                                    retryResumeSession();
+                                }
                             }
                         });
                     } catch (Exception e) {
-                        Log.e("MainActivity", "Error reattaching session activity: " + e.getMessage());
+                        Log.e(TAG, "Error reattaching session activity: " + e.getMessage());
                         isSessionActivityAttached = false;
                         cleanupCallbacks();
                     }
                 }
             }, SESSION_ACTIVITY_CHECK_DELAY);
+        }
+    }
+
+    public void setLatestSessionResult(FaceTecSessionResult sessionResult) {
+        this.latestSessionResult = sessionResult;
+    }
+
+    public void setLatestIDScanResult(FaceTecIDScanResult idScanResult) {
+        this.latestIDScanResult = idScanResult;
+    }
+
+    public String getLatestExternalDatabaseRefID() {
+        return this.latestExternalDatabaseRefID;
+    }
+
+    public void setLatestExternalDatabaseRefID(String externalDatabaseRefID) {
+        this.latestExternalDatabaseRefID = externalDatabaseRefID;
+    }
+
+    private void retryResumeSession() {
+        if (retryCount >= MAX_RETRY_ATTEMPTS) {
+            Log.e(TAG, "Max retry attempts reached, cleaning up session");
+            isSessionResuming = false;
+            cleanupCallbacks();
+            return;
+        }
+
+        retryCount++;
+        Log.d(TAG, "Retry attempt " + retryCount + " of " + MAX_RETRY_ATTEMPTS);
+
+        // Check if surface was released
+        if (isSurfaceReleased) {
+            Log.d(TAG, "Surface was released, attempting to recover");
+            recoverSurface();
+            return;
+        }
+
+        // Check if FaceTecSessionActivity is still attached
+        if (!isSessionActivityAttached) {
+            Log.d(TAG, "Session activity not attached, attempting to reattach");
+            reattachSessionActivity();
+            return;
+        }
+
+        sessionHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!isActivityPaused && !isActivityDestroyed && hasWindowFocus && isSessionActivityAttached && !isSurfaceReleased) {
+                    isProcessing = true;
+                    isSessionActive = true;
+                    isSessionResuming = false;
+                    Log.d(TAG, "Session resumed successfully");
+                } else {
+                    Log.d(TAG, "Activity not ready for session resume, will retry");
+                    retryResumeSession();
+                }
+            }
+        }, SESSION_RESUME_DELAY);
+    }
+
+    private void recoverSurface() {
+        if (isSessionInProgress && isSurfaceReleased) {
+            Log.d(TAG, "Attempting to recover surface");
+            sessionHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // Force a layout update to recreate the surface
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                View decorView = getWindow().getDecorView();
+                                decorView.requestLayout();
+                                decorView.invalidate();
+                                isSurfaceReleased = false;
+                                Log.d(TAG, "Surface recovery initiated");
+                            }
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error recovering surface: " + e.getMessage());
+                        isSurfaceReleased = true;
+                        cleanupCallbacks();
+                    }
+                }
+            }, SURFACE_RECOVERY_DELAY);
+        }
+    }
+
+    private FaceTecCustomization getCurrentCustomization() {
+        FaceTecCustomization customization = new FaceTecCustomization();
+        
+        // Set branding image
+        customization.getOverlayCustomization().brandingImage = R.drawable.flutter_logo;
+        
+        // Configure ID scan specific settings
+        customization.getIdScanCustomization().showSelectionScreenDocumentImage = true;
+        customization.getIdScanCustomization().captureScreenBackgroundColor = android.graphics.Color.WHITE;
+        customization.getIdScanCustomization().buttonBackgroundNormalColor = android.graphics.Color.BLACK;
+        customization.getIdScanCustomization().buttonTextNormalColor = android.graphics.Color.WHITE;
+        customization.getIdScanCustomization().buttonTextHighlightColor = android.graphics.Color.WHITE;
+
+        // Configure upload messages
+        FaceTecCustomization.setIDScanUploadMessageOverrides(
+            "Uploading\nEncrypted\nID Scan",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing ID Scan",
+            "Uploading\nEncrypted\nBack of ID",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing Back of ID",
+            "Saving\nYour Confirmed Info",
+            "Still Uploading...\nSlow Connection",
+            "Info Saved",
+            "Processing",
+            "Uploading Encrypted\nNFC Details",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing\nNFC Details",
+            "Uploading Encrypted\nID Details",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing\nID Details"
+        );
+
+        // Configure result screen messages
+        FaceTecCustomization.setIDScanResultScreenMessageOverrides(
+            "Front Scan Complete",
+            "Front of ID\nScanned",
+            "Front of ID\nScanned",
+            "ID Scan Complete",
+            "Back of ID\nScanned",
+            "Passport Scan Complete",
+            "Passport Scanned",
+            "Photo ID Scan\nComplete",
+            "ID Scan Complete",
+            "ID Photo Capture\nComplete",
+            "Face Didn't Match\nHighly Enough",
+            "ID Document\nNot Fully Visible",
+            "ID Text Not Legible",
+            "ID Type Mismatch\nPlease Try Again",
+            "ID Details\nUploaded"
+        );
+        
+        return customization;
+    }
+
+    private void startPhotoIDMatch(String sessionToken) {
+        try {
+            // Create a new processor for the face scan
+            PhotoIDMatchProcessor processor = new PhotoIDMatchProcessor(sessionToken, this, processorChannel);
+            
+            // Store the processor for later use
+            currentProcessor = processor;
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting Photo ID Match: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void startPhotoIDScan(String sessionToken) {
+        try {
+            // Create a new processor for the ID scan
+            PhotoIDScanProcessor processor = new PhotoIDScanProcessor(sessionToken, this, processorChannel);
+            
+            // Store the processor for later use
+            currentProcessor = processor;
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting Photo ID Scan: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void processSessionResult(FaceTecSessionResult sessionResult) {
+        if (sessionResult == null) {
+            Log.d(TAG, "Session was cancelled or failed");
+            isSessionInProgress = false;
+            isSessionActive = false;
+            cleanupCallbacks();
+            return;
+        }
+
+        if (sessionResult.getStatus() != FaceTecSessionStatus.SESSION_COMPLETED_SUCCESSFULLY) {
+            Log.d(TAG, "Session was not completed successfully");
+            isSessionInProgress = false;
+            isSessionActive = false;
+            cleanupCallbacks();
+            return;
+        }
+
+        // Process the session result
+        try {
+            // Get essential data off the FaceTecSessionResult
+            JSONObject parameters = new JSONObject();
+            parameters.put("faceScan", sessionResult.getFaceScanBase64());
+            parameters.put("auditTrailImage", sessionResult.getAuditTrailCompressedBase64()[0]);
+            parameters.put("lowQualityAuditTrailImage", sessionResult.getLowQualityAuditTrailCompressedBase64()[0]);
+
+            // Prepare arguments to send to Flutter
+            final Map<String, Object> args = new HashMap<>();
+            args.put("status", "sessionCompletedSuccessfully");
+            args.put("sessionId", sessionResult.getSessionId());
+            args.put("scanType", "faceScan");
+            args.put("faceScanBase64", sessionResult.getFaceScanBase64());
+            args.put("auditTrailCompressedBase64", sessionResult.getAuditTrailCompressedBase64()[0]);
+            args.put("lowQualityAuditTrailCompressedBase64", sessionResult.getLowQualityAuditTrailCompressedBase64()[0]);
+
+            // Send data to Flutter for processing
+            processorChannel.invokeMethod("processSession", args);
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing session result: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            isSessionInProgress = false;
+            isSessionActive = false;
+            cleanupCallbacks();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == 1) { // FaceTec SDK request code
+            if (currentProcessor == null) {
+                return;
+            }
+
+            if (latestSessionResult != null && latestSessionResult.getStatus() != null) {
+                Log.d(TAG, "Session Status: " + latestSessionResult.getStatus().toString());
+            }
+
+            // At this point, you have already handled all results in your Processor code
+            if (!currentProcessor.isSuccess()) {
+                // Reset any necessary state
+                isSessionInProgress = false;
+                isSessionActive = false;
+                cleanupCallbacks();
+            }
         }
     }
 }

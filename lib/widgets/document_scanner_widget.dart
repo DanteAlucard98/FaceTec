@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/document_scanner_service.dart';
+import '../facetec_config.dart';
 
 class DocumentScannerWidget extends StatefulWidget {
   final String sessionToken;
@@ -30,10 +31,10 @@ class _DocumentScannerWidgetState extends State<DocumentScannerWidget> {
 
   Future<void> _initializeScanner() async {
     try {
-      // Initialize with your FaceTec credentials
+      // Initialize with FaceTec credentials from facetec_config.dart
       await _scannerService.initialize(
-        deviceKeyIdentifier: 'YOUR_DEVICE_KEY_IDENTIFIER',
-        publicFaceScanEncryptionKey: 'YOUR_PUBLIC_FACE_SCAN_ENCRYPTION_KEY',
+        deviceKeyIdentifier: FaceTecConfig.deviceKeyIdentifier,
+        publicFaceScanEncryptionKey: FaceTecConfig.publicFaceScanEncryptionKey,
       );
       setState(() => _isInitialized = true);
     } catch (e) {

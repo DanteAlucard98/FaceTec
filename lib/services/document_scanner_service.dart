@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
+import '../facetec_config.dart';
 
 class DocumentScannerService {
-  static const MethodChannel _channel = MethodChannel('com.facetec.sdk');
+  static const MethodChannel _channel = MethodChannel('com.example.flutter_facetec_sample_app/document_scanner');
   static const MethodChannel _processorChannel = MethodChannel('com.facetec.sdk/livenesscheck');
   static const MethodChannel _idscannChannel = MethodChannel('com.facetec.sdk/idscann');
 
@@ -12,8 +13,8 @@ class DocumentScannerService {
   DocumentScannerService._internal();
 
   // Stream controllers for different events
-  final _scanResultController = StreamController<Map<String, dynamic>>.broadcast();
-  final _errorController = StreamController<String>.broadcast();
+  final _scanResultController = StreamController<Map<String, dynamic>>();
+  final _errorController = StreamController<String>();
   final _progressController = StreamController<double>.broadcast();
 
   // Getters for streams
@@ -30,27 +31,25 @@ class DocumentScannerService {
       await _channel.invokeMethod('initialize', {
         'deviceKeyIdentifier': deviceKeyIdentifier,
         'publicFaceScanEncryptionKey': publicFaceScanEncryptionKey,
+        'baseURL': FaceTecConfig.baseURL,
       });
     } catch (e) {
       _errorController.add(e.toString());
-      rethrow;
     }
   }
 
   // Start document scanning process
   Future<void> startDocumentScan(String sessionToken) async {
     try {
-      // Set up method call handler for processing results
-      _processorChannel.setMethodCallHandler(_handleProcessorCall);
-      _idscannChannel.setMethodCallHandler(_handleIdscannCall);
-
-      // Start the scan
-      await _channel.invokeMethod('startMatchIdScan', {
+      final result = await _channel.invokeMethod('startDocumentScan', {
         'sessionToken': sessionToken,
       });
+      
+      if (result is Map<String, dynamic>) {
+        _scanResultController.add(result);
+      }
     } catch (e) {
       _errorController.add(e.toString());
-      rethrow;
     }
   }
 
@@ -90,7 +89,6 @@ class DocumentScannerService {
       await _channel.invokeMethod('cancelSession');
     } catch (e) {
       _errorController.add(e.toString());
-      rethrow;
     }
   }
 

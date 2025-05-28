@@ -1,79 +1,120 @@
+//
+// Welcome to the annotated FaceTec Device SDK core code for performing secure Enrollment!
+//
 package com.example.flutter_facetec_sample_app;
 
 import android.content.Context;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
-import com.facetec.sdk.*;
+
+import com.facetec.sdk.FaceTecCustomization;
+import com.facetec.sdk.FaceTecFaceScanProcessor;
+import com.facetec.sdk.FaceTecFaceScanResultCallback;
+import com.facetec.sdk.FaceTecSessionResult;
+import com.facetec.sdk.FaceTecSessionStatus;
+import com.facetec.sdk.FaceTecSessionActivity;
+import com.facetec.sdk.FaceTecSDK;
+
 import org.json.JSONException;
 import org.json.JSONObject;
-import java.io.IOException;
-import java.util.ArrayList;
+
 import java.util.HashMap;
 import java.util.Map;
+
 import io.flutter.plugin.common.MethodChannel;
 
-public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecIDScanProcessor {
+// This is an example self-contained class to perform Enrollment with the FaceTec SDK.
+// You may choose to further componentize parts of this in your own Apps based on your specific requirements.
+
+// Android Note 1:  Some commented "Parts" below are out of order so that they can match iOS and Browser source for this same file on those platforms.
+// Android Note 2:  Android does not have a onFaceTecSDKCompletelyDone function that you must implement like "Part 10" of iOS and Android Samples.  Instead, onActivityResult is used as the place in code you get control back from the FaceTec SDK.
+public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, Processor {
+    private static final String TAG = "PhotoIDMatchProcessor";
     private boolean success = false;
-    private boolean faceScanWasSuccessful = false;
     private final MainActivity mainActivity;
     private final MethodChannel processorChannel;
-    private final MethodChannel idscannChannel;
+    private String sessionToken;
 
-    public PhotoIDMatchProcessor(String sessionToken, Context context, MethodChannel processorChannel, MethodChannel idscannChannel) {
+    public PhotoIDMatchProcessor(String sessionToken, Context context, MethodChannel processorChannel) {
         this.mainActivity = (MainActivity) context;
         this.processorChannel = processorChannel;
-        this.idscannChannel = idscannChannel;
+        this.sessionToken = sessionToken;
 
-        // Configurar mensajes personalizados para el escaneo de ID
+        // Configure upload messages
         FaceTecCustomization.setIDScanUploadMessageOverrides(
-            "Subiendo\nID Escaneado", // Inicio de subida del frente del ID
-            "Sigue Subiendo...\nConexión Lenta", // Subida del frente del ID en progreso
-            "Subida Completada", // Subida del frente del ID completada
-            "Procesando ID", // Procesando el frente del ID
-            "Subiendo\nReverso del ID", // Inicio de subida del reverso del ID
-            "Sigue Subiendo...\nConexión Lenta", // Subida del reverso del ID en progreso
-            "Subida Completada", // Subida del reverso del ID completada
-            "Procesando Reverso", // Procesando el reverso del ID
-            "Guardando\nInformación", // Guardando información del usuario
-            "Sigue Subiendo...\nConexión Lenta", // Subida de información en progreso
-            "Información Guardada", // Información guardada
-            "Procesando", // Procesando información
-            "Subiendo\nDetalles NFC", // Subiendo detalles NFC
-            "Sigue Subiendo...\nConexión Lenta", // Subida NFC en progreso
-            "Subida Completada", // Subida NFC completada
-            "Procesando\nDetalles NFC", // Procesando detalles NFC
-            "Subiendo\nDetalles ID", // Subiendo detalles del ID
-            "Sigue Subiendo...\nConexión Lenta", // Subida de detalles en progreso
-            "Subida Completada", // Subida de detalles completada
-            "Procesando\nDetalles ID" // Procesando detalles del ID
+            "Uploading\nEncrypted\nID Scan",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing ID Scan",
+            "Uploading\nEncrypted\nBack of ID",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing Back of ID",
+            "Saving\nYour Confirmed Info",
+            "Still Uploading...\nSlow Connection",
+            "Info Saved",
+            "Processing",
+            "Uploading Encrypted\nNFC Details",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing\nNFC Details",
+            "Uploading Encrypted\nID Details",
+            "Still Uploading...\nSlow Connection",
+            "Upload Complete",
+            "Processing\nID Details"
         );
 
-        // Iniciar la sesión de FaceTec
-        FaceTecSessionActivity.createAndLaunchSession(
-            context,
-            this,
-            this,
-            sessionToken
+        // Configure result screen messages
+        FaceTecCustomization.setIDScanResultScreenMessageOverrides(
+            "Front Scan Complete",
+            "Front of ID\nScanned",
+            "Front of ID\nScanned",
+            "ID Scan Complete",
+            "Back of ID\nScanned",
+            "Passport Scan Complete",
+            "Passport Scanned",
+            "Photo ID Scan\nComplete",
+            "ID Scan Complete",
+            "ID Photo Capture\nComplete",
+            "Face Didn't Match\nHighly Enough",
+            "ID Document\nNot Fully Visible",
+            "ID Text Not Legible",
+            "ID Type Mismatch\nPlease Try Again",
+            "ID Details\nUploaded"
         );
+
+        // Start the session
+        startSession();
     }
 
     @Override
     public void processSessionWhileFaceTecSDKWaits(final FaceTecSessionResult sessionResult, final FaceTecFaceScanResultCallback faceScanResultCallback) {
-        if (sessionResult.getStatus() != FaceTecSessionStatus.SESSION_COMPLETED_SUCCESSFULLY) {
-            Log.d("PhotoIDMatchProcessor", "Sesión no completada exitosamente, cancelando.");
+        if (sessionResult == null) {
+            Log.d(TAG, "Session was cancelled or failed");
             faceScanResultCallback.cancel();
             return;
         }
 
+        // Set the latest session result
+        mainActivity.setLatestSessionResult(sessionResult);
+
+        if (sessionResult.getStatus() != FaceTecSessionStatus.SESSION_COMPLETED_SUCCESSFULLY) {
+            Log.d(TAG, "Session was not completed successfully");
+            faceScanResultCallback.cancel();
+            return;
+        }
+
+        // Process the session result
         try {
-            // Preparar datos del escaneo facial
+            // Get essential data off the FaceTecSessionResult
             JSONObject parameters = new JSONObject();
             parameters.put("faceScan", sessionResult.getFaceScanBase64());
             parameters.put("auditTrailImage", sessionResult.getAuditTrailCompressedBase64()[0]);
             parameters.put("lowQualityAuditTrailImage", sessionResult.getLowQualityAuditTrailCompressedBase64()[0]);
 
-            // Enviar datos a Flutter para procesamiento
-            Map<String, Object> args = new HashMap<>();
+            // Prepare arguments to send to Flutter
+            final Map<String, Object> args = new HashMap<>();
             args.put("status", "sessionCompletedSuccessfully");
             args.put("sessionId", sessionResult.getSessionId());
             args.put("scanType", "faceScan");
@@ -81,128 +122,84 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
             args.put("auditTrailCompressedBase64", sessionResult.getAuditTrailCompressedBase64()[0]);
             args.put("lowQualityAuditTrailCompressedBase64", sessionResult.getLowQualityAuditTrailCompressedBase64()[0]);
 
+            // Send data to Flutter for processing
             processorChannel.invokeMethod("processSession", args, new MethodChannel.Result() {
                 @Override
                 public void success(Object result) {
                     try {
                         if (result instanceof Map) {
                             Map<String, Object> resultMap = (Map<String, Object>) result;
-                            String scanResultBlob = (String) resultMap.get("scanResultBlob");
                             
-                            if (scanResultBlob != null) {
-                                faceScanWasSuccessful = faceScanResultCallback.proceedToNextStep(scanResultBlob);
+                            // Create response similar to the server response
+                            JSONObject responseJSON = new JSONObject();
+                            responseJSON.put("wasProcessed", true);
+                            responseJSON.put("error", false);
+                            
+                            // If Flutter sent back a scanResultBlob, use it
+                            if (resultMap.containsKey("scanResultBlob")) {
+                                responseJSON.put("scanResultBlob", resultMap.get("scanResultBlob"));
                             } else {
-                                faceScanResultCallback.cancel();
+                                // Otherwise create a default response
+                                responseJSON.put("scanResultBlob", "{}");
                             }
+                            
+                            String responseString = responseJSON.toString();
+                            Log.d(TAG, "Using response: " + responseString);
+                            
+                            // Set success message
+                            FaceTecCustomization.overrideResultScreenSuccessMessage = "Face Scanned\n3D Liveness Proven";
+                            
+                            // Proceed to next step
+                            success = faceScanResultCallback.proceedToNextStep(responseString);
                         } else {
+                            Log.e(TAG, "Invalid response format from Flutter");
                             faceScanResultCallback.cancel();
                         }
                     } catch (Exception e) {
-                        Log.e("PhotoIDMatchProcessor", "Error procesando resultado del escaneo facial: " + e.getMessage());
+                        Log.e(TAG, "Error handling Flutter response: " + e.getMessage());
+                        e.printStackTrace();
                         faceScanResultCallback.cancel();
                     }
                 }
 
                 @Override
                 public void error(String errorCode, String errorMessage, Object errorDetails) {
-                    Log.e("PhotoIDMatchProcessor", "Error de Flutter: " + errorCode + " - " + errorMessage);
+                    Log.e(TAG, "Flutter returned error: " + errorCode + " - " + errorMessage);
                     faceScanResultCallback.cancel();
                 }
 
                 @Override
                 public void notImplemented() {
-                    Log.e("PhotoIDMatchProcessor", "Método no implementado en Flutter");
+                    Log.e(TAG, "Method not implemented in Flutter");
                     faceScanResultCallback.cancel();
                 }
             });
         } catch (Exception e) {
-            Log.e("PhotoIDMatchProcessor", "Error procesando escaneo facial: " + e.getMessage());
+            Log.e(TAG, "Error processing session result: " + e.getMessage());
+            e.printStackTrace();
             faceScanResultCallback.cancel();
         }
     }
 
-    @Override
-    public void processIDScanWhileFaceTecSDKWaits(final FaceTecIDScanResult idScanResult, final FaceTecIDScanResultCallback idScanResultCallback) {
-        if (idScanResult.getStatus() != FaceTecIDScanStatus.SUCCESS) {
-            Log.d("PhotoIDMatchProcessor", "Sesión no completada exitosamente, cancelando.");
-            idScanResultCallback.cancel();
-            return;
-        }
-
+    public void startSession() {
         try {
-            // Preparar datos del escaneo de ID
-            JSONObject parameters = new JSONObject();
-            parameters.put("idScan", idScanResult.getIDScanBase64());
-
-            ArrayList<String> frontImagesCompressedBase64 = idScanResult.getFrontImagesCompressedBase64();
-            ArrayList<String> backImagesCompressedBase64 = idScanResult.getBackImagesCompressedBase64();
-            
-            if(frontImagesCompressedBase64.size() > 0) {
-                parameters.put("idScanFrontImage", frontImagesCompressedBase64.get(0));
-            }
-            if(backImagesCompressedBase64.size() > 0) {
-                parameters.put("idScanBackImage", backImagesCompressedBase64.get(0));
-            }
-
-            // Enviar datos a Flutter para procesamiento
-            Map<String, Object> args = new HashMap<>();
-            args.put("status", "sessionCompletedSuccessfully");
-            args.put("sessionId", idScanResult.getSessionId());
-            args.put("scanType", "idScan");
-            args.put("idScanBase64", idScanResult.getIDScanBase64());
-            
-            if(frontImagesCompressedBase64.size() > 0) {
-                args.put("idScanFrontImage", frontImagesCompressedBase64.get(0));
-            }
-            if(backImagesCompressedBase64.size() > 0) {
-                args.put("idScanBackImage", backImagesCompressedBase64.get(0));
-            }
-
-            // Simular progreso de subida
-            idScanResultCallback.uploadProgress(0);
-
-            idscannChannel.invokeMethod("processSession", args, new MethodChannel.Result() {
-                @Override
-                public void success(Object result) {
-                    try {
-                        if (result instanceof Map) {
-                            Map<String, Object> resultMap = (Map<String, Object>) result;
-                            String scanResultBlob = (String) resultMap.get("scanResultBlob");
-                            
-                            if (scanResultBlob != null) {
-                                idScanResultCallback.uploadProgress(1);
-                                success = idScanResultCallback.proceedToNextStep(scanResultBlob);
-                            } else {
-                                idScanResultCallback.cancel();
-                            }
-                        } else {
-                            idScanResultCallback.cancel();
-                        }
-                    } catch (Exception e) {
-                        Log.e("PhotoIDMatchProcessor", "Error procesando resultado del escaneo de ID: " + e.getMessage());
-                        idScanResultCallback.cancel();
-                    }
-                }
-
-                @Override
-                public void error(String errorCode, String errorMessage, Object errorDetails) {
-                    Log.e("PhotoIDMatchProcessor", "Error de Flutter: " + errorCode + " - " + errorMessage);
-                    idScanResultCallback.cancel();
-                }
-
-                @Override
-                public void notImplemented() {
-                    Log.e("PhotoIDMatchProcessor", "Método no implementado en Flutter");
-                    idScanResultCallback.cancel();
-                }
-            });
+            // Start the session
+            FaceTecSessionActivity.createAndLaunchSession(mainActivity, this, sessionToken);
         } catch (Exception e) {
-            Log.e("PhotoIDMatchProcessor", "Error procesando escaneo de ID: " + e.getMessage());
-            idScanResultCallback.cancel();
+            Log.e(TAG, "Error starting session: " + e.getMessage());
+            e.printStackTrace();
+            onSessionError();
+        }
+    }
+
+    private void onSessionError() {
+        success = false;
+        if (mainActivity != null) {
+            mainActivity.onFaceTecSDKCompletelyDone();
         }
     }
 
     public boolean isSuccess() {
         return this.success;
     }
-} 
+}

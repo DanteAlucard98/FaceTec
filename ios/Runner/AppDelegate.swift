@@ -3,7 +3,7 @@ import Flutter
 import FaceTecSDK
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FaceTecFaceScanProcessorDelegate, FaceTecIDScanProcessorDelegate, URLSessionDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FaceTecFaceScanProcessorDelegate, URLSessionDelegate {
     //
     // AppDelegate acts as the ViewController for the FaceTec session and implements the processor delegate.
     // As such, it has two required methods, processSessionWhileFaceTecSDKWaits() and
@@ -12,12 +12,8 @@ import FaceTecSDK
 
     var flutterEngine: FlutterEngine?
     var faceScanResultCallbackRef: FaceTecFaceScanResultCallback? = nil
-    var idScanResultCallbackRef: FaceTecIDScanResultCallback? = nil
     var processorChannel: FlutterMethodChannel?
-    var idscannChannel: FlutterMethodChannel?
     private var livenessCheckResult: FlutterResult?
-    private var idScanResult: FlutterResult?
-    private var isBackScan: Bool = false
     
     override func application(
         _ application: UIApplication,
@@ -32,11 +28,9 @@ import FaceTecSDK
         // Other processors you may create will be instantiated through another method channel.
         let faceTecSDKChannel = FlutterMethodChannel(name: "com.facetec.sdk", binaryMessenger: controller.binaryMessenger)
         self.processorChannel = FlutterMethodChannel(name: "com.facetec.sdk/livenesscheck", binaryMessenger: flutterEngine?.binaryMessenger ?? controller.binaryMessenger)
-        self.idscannChannel = FlutterMethodChannel(name: "com.facetec.sdk/idscann", binaryMessenger: flutterEngine?.binaryMessenger ?? controller.binaryMessenger)
         
         faceTecSDKChannel.setMethodCallHandler(receivedFaceTecSDKMethodCall(call:result:))
         self.processorChannel!.setMethodCallHandler(receivedLivenessCheckProcessorCall(call:result:))
-        self.idscannChannel!.setMethodCallHandler(receivedIdScanProcessorCall(call:result:))
 
         GeneratedPluginRegistrant.register(with: self)
         GeneratedPluginRegistrant.register(with: flutterEngine ?? self)
@@ -66,18 +60,6 @@ import FaceTecSDK
                 return result(FlutterError())
             }
             return startLivenessCheck(sessionToken: sessionToken, result: result);
-        case "startIdscann":
-            guard let args = call.arguments as? Dictionary<String, Any>,
-                  let sessionToken = args["sessionToken"] as? String
-            else {
-                return result(FlutterError())
-            }
-            
-            // Extraer parámetros adicionales
-            let isBackScan = args["isBackScan"] as? Bool ?? false
-            let shouldReturnBothSides = args["shouldReturnBothSides"] as? Bool ?? false
-            
-            return startIdScan(sessionToken: sessionToken, isBackScan: isBackScan, shouldReturnBothSides: shouldReturnBothSides, result: result)
         case "createAPIUserAgentString":
             let data = FaceTec.sdk.createFaceTecAPIUserAgentString("")
             result(data)
@@ -103,21 +85,6 @@ import FaceTecSDK
             let args = call.arguments as? Dictionary<String, Any> ?? nil
             let uploadMessage = args?["uploadMessage"] as? String ?? ""
             return onScanResultUploadDelay(uploadMessage: uploadMessage)
-        default:
-            result(FlutterMethodNotImplemented);
-            return;
-        }
-    }
-    
-    private func receivedIdScanProcessorCall(call: FlutterMethodCall, result: @escaping FlutterResult) -> Void {
-        // Usado para manejar llamadas recibidas a través de "com.facetec.sdk/idscann"
-        switch(call.method) {
-        case "onScanResultBlobReceived":
-            let args = call.arguments as? Dictionary<String, Any> ?? nil
-            let scanResultBlob = args?["scanResultBlob"] as? String ?? ""
-            return onIdScanResultBlobReceived(scanResultBlob: scanResultBlob)
-        case "cancelSession":
-            return cancelIdScan()
         default:
             result(FlutterMethodNotImplemented);
             return;
@@ -153,45 +120,6 @@ import FaceTecSDK
         let controller: FlutterViewController = self.window?.rootViewController as! FlutterViewController;
         controller.present(livenessCheckViewController, animated: true, completion: nil)
     }
-    
-    private func startIdScan(sessionToken: String, isBackScan: Bool, shouldReturnBothSides: Bool, result: @escaping FlutterResult) {
-        // Almacenar el tipo de escaneo para usarlo en el procesamiento
-        self.isBackScan = isBackScan
-        self.idScanResult = result
-        
-        // Personalizar la experiencia de escaneo de ID según el tipo (frontal o trasero)
-        let customization = FaceTecCustomization()
-        
-        if isBackScan {
-            // Configuración específica para escaneo trasero
-            print("Configuring SDK for back scan")
-            customization.idScanCustomization.showSelectionScreenDocumentImage = true
-            customization.idScanCustomization.captureScreenBackgroundColor = .white
-            // Eliminamos propiedades que pueden no existir
-            print("Configurado para escanear el REVERSO de tu ID")
-        } else {
-            // Configuración específica para escaneo frontal
-            print("Configuring SDK for front scan")
-            customization.idScanCustomization.showSelectionScreenDocumentImage = true
-            customization.idScanCustomization.captureScreenBackgroundColor = .white
-            // Eliminamos propiedades que pueden no existir
-            print("Configurado para escanear el FRENTE de tu ID")
-        }
-        
-        // Configuración común para ambos tipos de escaneo
-        customization.idScanCustomization.buttonBackgroundNormalColor = .black
-        customization.idScanCustomization.buttonTextNormalColor = .white
-        customization.idScanCustomization.buttonTextHighlightColor = .white
-        
-        FaceTec.sdk.setCustomization(customization)
-        
-        // Crear el controlador de vista para el escaneo de ID
-        let idScanViewController = FaceTec.sdk.createIDScanVC(idScanProcessorDelegate: self, sessionToken: sessionToken)
-        
-        // Presentar la vista de escaneo
-        let controller: FlutterViewController = self.window?.rootViewController as! FlutterViewController
-        controller.present(idScanViewController, animated: true, completion: nil)
-    }
 
     // FaceTecFaceScanProcessorDelegate required method
     func processSessionWhileFaceTecSDKWaits(sessionResult: FaceTecSessionResult, faceScanResultCallback: FaceTecFaceScanResultCallback) {
@@ -221,62 +149,6 @@ import FaceTecSDK
                                                    arguments:args)
         
     }
-    
-    // FaceTecIDScanProcessorDelegate required method
-    func processIDScanWhileFaceTecSDKWaits(idScanResult: FaceTecIDScanResult, idScanResultCallback: FaceTecIDScanResultCallback) {
-        // Almacenar el callback para usar fuera del ámbito de este método
-        idScanResultCallbackRef = idScanResultCallback
-
-        if idScanResult.status != .success {
-            print("ID Scan was not completed successfully, status: \(idScanResult.status)")
-            idScanResultCallback.onIDScanResultCancel()
-            return
-        }
-
-        // Preparar argumentos para enviar a Flutter
-        var args: [String: Any] = [
-            "status": "sessionCompletedSuccessfully",
-            "sessionId": idScanResult.sessionId,
-            "scanType": "idScan",
-            "success": true
-        ]
-        
-        // Comprobar si tenemos imágenes del escaneo
-        let hasFrontImage = idScanResult.frontImages?.count ?? 0 > 0
-        let hasBackImage = idScanResult.backImages?.count ?? 0 > 0
-        
-        print("ID Scan details - Front image: \(hasFrontImage), Back image: \(hasBackImage), isBackScan: \(isBackScan)")
-        
-        // Añadir información específica según el tipo de escaneo
-        if hasFrontImage {
-            args["idScanFrontImage"] = idScanResult.frontImages?[0]
-        }
-        
-        if hasBackImage {
-            args["idScanBackImage"] = idScanResult.backImages?[0]
-        }
-        
-        // Establecer flags según el tipo de escaneo
-        if isBackScan {
-            args["isFrontScan"] = false
-            args["isBackScan"] = true
-            args["isBackScanRequired"] = false
-        } else {
-            args["isFrontScan"] = true
-            args["isBackScan"] = false
-            args["isBackScanRequired"] = true
-        }
-        
-        // Enviar los datos a Flutter
-        self.idscannChannel?.invokeMethod("processSession", arguments: args)
-        
-        // Simular progreso de carga exitoso
-        idScanResultCallback.onIDScanUploadProgress(uploadedPercent: 100)
-        
-        // Crear una respuesta de éxito
-        let successResponse = "{\"success\":true,\"data\":{\"idScanStatus\":\"\(isBackScan ? "BackSuccessful" : "FrontSuccessful")\"}}"
-        idScanResultCallback.onIDScanResultProceedToNextStep(scanResultBlob: successResponse)
-    }
 
     // FaceTecFaceScanProcessorDelegate method
     func onFaceTecSDKCompletelyDone() {
@@ -288,10 +160,6 @@ import FaceTecSDK
         // In this case, we don't perform any post-processing, other than resolving a successful session to the Flutter layer.
         livenessCheckResult?("Success")
         livenessCheckResult = nil
-        
-        idScanResult?("Success")
-        idScanResult = nil
-        
         print("FaceTecSDK completely done");
     }
 
@@ -301,24 +169,11 @@ import FaceTecSDK
         livenessCheckResult?(FlutterError(code: "LivenessCheckFailed", message: "Liveness check failed and session was canceled.", details: nil))
         livenessCheckResult = nil
     }
-    
-    func cancelIdScan() {
-        self.idScanResultCallbackRef?.onIDScanResultCancel()
-        self.idScanResultCallbackRef = nil
-        idScanResult?(FlutterError(code: "IDScanFailed", message: "ID scan failed and session was canceled.", details: nil))
-        idScanResult = nil
-    }
 
     func onScanResultBlobReceived(scanResultBlob: String) {
         // Handle a successfully received scanResultBlob from the FaceTec API
         self.faceScanResultCallbackRef?.onFaceScanGoToNextStep(scanResultBlob: scanResultBlob)
         self.faceScanResultCallbackRef = nil
-    }
-    
-    func onIdScanResultBlobReceived(scanResultBlob: String) {
-        // Manejar un scanResultBlob recibido exitosamente para el escaneo de ID
-        self.idScanResultCallbackRef?.onIDScanResultProceedToNextStep(scanResultBlob: scanResultBlob)
-        self.idScanResultCallbackRef = nil
     }
 
     func onScanResultUploadDelay(uploadMessage: String = "") {

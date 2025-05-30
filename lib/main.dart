@@ -5,14 +5,12 @@ import 'package:flutter/services.dart';
 import 'facetec_config.dart';
 import 'package:http/http.dart' as http;
 import 'processors/LivenessCheck.dart';
-import 'processors/IDScanProcessor.dart';
-import 'processors/MatchIdScanProcessor.dart';
+import 'processors/PhotoIDMatch.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   LivenessCheckProcessor();
-  IDScanProcessor();
-  MatchIdScanProcessor();
+  PhotoIDMatchProcessor();
   runApp(const MyApp());
 }
 
@@ -66,59 +64,13 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
+class _MyHomePageState extends State<MyHomePage> {
   bool _showLoading = true;
   bool _isLivenessEnabled = false;
-  bool _isSessionActive = false;
 
-  static const faceTecSDK = MethodChannel('com.facetec.sdk');
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _initializeFaceTecSDK());
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      // Re-initialize SDK if needed when app comes to foreground
-      if (!_isLivenessEnabled && !_showLoading) {
-        _initializeFaceTecSDK();
-      }
-      
-      // If we were in the middle of an ID scan session, we need to re-enable UI
-      if (_isSessionActive) {
-        print("Resuming from paused state, ID scan may be in progress");
-      }
-    } else if (state == AppLifecycleState.paused) {
-      // When paused, do not cancel the session if we're in the middle of an ID scan
-      // The SDK handles its own state between screens for ID scanning
-      print("App paused, session active: $_isSessionActive");
-    }
-  }
-
-  Future<void> _cleanupSession() async {
-    try {
-      await faceTecSDK.invokeMethod("cancelSession");
-    } catch (e) {
-      print("Error cleaning up session: $e");
-    } finally {
-      setState(() {
-        _isSessionActive = false;
-        _isLivenessEnabled = true;
-      });
-    }
-  }
+  static const platform = MethodChannel('com.facetec.sdk');
+  static const processorChannel = MethodChannel('com.facetec.sdk/livenesscheck');
+  static const photoIDMatchChannel = MethodChannel('com.facetec.sdk/photo_id_match');
 
   @override
   Widget build(BuildContext context) {
@@ -157,37 +109,48 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
           // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            OutlinedButton(
-              onPressed: _isLivenessEnabled
-                  ? () {
-                      _startLiveness();
-                    }
-                  : null,
-              child: const Text('Start Liveness'),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final String? sessionToken = await getSessionToken();
+                  if (sessionToken != null) {
+                    await platform.invokeMethod('startLivenessCheck', {
+                      'sessionToken': sessionToken,
+                    });
+                  }
+                } catch (e) {
+                  print('Error: $e');
+                }
+              },
+              child: Text('Start Liveness Check'),
             ),
-            OutlinedButton(
-              onPressed: _isLivenessEnabled
-                  ? () {
-                      _startIdscann();
-                    }
-                  : null,
-              child: const Text('Start ID Scan'),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final String? sessionToken = await getSessionToken();
+                  if (sessionToken != null) {
+                    await platform.invokeMethod('startPhotoIDMatch', {
+                      'sessionToken': sessionToken,
+                    });
+                  }
+                } catch (e) {
+                  print('Error: $e');
+                }
+              },
+              child: Text('Start Photo ID Match'),
             ),
-            OutlinedButton(
-              onPressed: _isLivenessEnabled
-                  ? () {
-                      _startMatchIdScan();
-                    }
-                  : null,
-              child: const Text('Start Match ID Scan'),
-            ),
-            Visibility(
-                visible: _showLoading,
-                child: const Text('Initializing FaceTec SDK...'))
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _initializeFaceTecSDK());
   }
 
   Future<void> _initializeFaceTecSDK() async {
@@ -197,7 +160,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
             "Config Error", "You must define your deviceKeyIdentifier.");
       }
 
-      await faceTecSDK.invokeMethod("initialize", {
+      await platform.invokeMethod("initialize", {
         "deviceKeyIdentifier": FaceTecConfig.deviceKeyIdentifier,
         "publicFaceScanEncryptionKey": FaceTecConfig.publicFaceScanEncryptionKey
       });
@@ -211,7 +174,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   }
 
   Future<String> _getAPIUserAgentString() async {
-    final String result = await faceTecSDK.invokeMethod("createAPIUserAgentString");
+    final String result = await platform.invokeMethod("createAPIUserAgentString");
     return result;
   }
 
@@ -246,95 +209,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _startLiveness() async {
-    setState(() {
-      _isLivenessEnabled = false;
-      _isSessionActive = true;
-    });
-    try {
-      String sessionToken = await getSessionToken() as String;
-      await faceTecSDK
-          .invokeMethod("startLivenessCheck", {"sessionToken": sessionToken});
-    }
-    catch (e) {
-      await _showErrorDialog("Error", e.toString());
-    }
-    finally {
-      setState(() {
-        _isSessionActive = false;
-        _isLivenessEnabled = true;
-      });
-    }
-  }
-
-  Future<void> _startIdscann() async {
-    setState(() {
-      _isLivenessEnabled = false;
-      _isSessionActive = true;
-    });
-    try {
-      final sessionToken = await getSessionToken();
-      if (sessionToken == null) {
-        throw Exception("Failed to get session token");
-      }
-
-      // Show a dialog explaining the ID scan process
-      await _showInfoDialog("ID Scan Instructions", 
-          "Please prepare your ID document. You will need to scan both the front and back of your ID.\n\n" +
-          "Ensure good lighting and hold your ID steady during the scan.");
-
-      // Start the ID scan session
-      await faceTecSDK.invokeMethod('startIdscann', {
-        'sessionToken': sessionToken
-      });
-
-      // The session is now managed by the SDK until it completes
-    } catch (e) {
-      print("Error in ID scan: $e");
-      await _showErrorDialog("ID Scan Error", e.toString());
-    } finally {
-      // Reset state after session completes
-      setState(() {
-        _isLivenessEnabled = true;
-        _isSessionActive = false;
-      });
-    }
-  }
-
-  Future<void> _startMatchIdScan() async {
-    setState(() {
-      _isLivenessEnabled = false;
-      _isSessionActive = true;
-    });
-    try {
-      final sessionToken = await getSessionToken();
-      if (sessionToken == null) {
-        throw Exception("Failed to get session token");
-      }
-
-      // Show a dialog explaining the match ID scan process
-      await _showInfoDialog("Match ID Scan Instructions", 
-          "Please prepare your ID document and follow these steps:\n\n" +
-          "1. First, scan your ID document (front and back)\n" +
-          "2. Then, take a selfie for face matching\n\n" +
-          "Ensure good lighting and hold your ID steady during the scan.");
-
-      // Start the match ID scan session
-      await faceTecSDK.invokeMethod('startMatchIdScan', {
-        'sessionToken': sessionToken
-      });
-
-    } catch (e) {
-      print("Error in match ID scan: $e");
-      await _showErrorDialog("Match ID Scan Error", e.toString());
-    } finally {
-      setState(() {
-        _isLivenessEnabled = true;
-        _isSessionActive = false;
-      });
-    }
-  }
-
   Future<void> _showErrorDialog(String errorTitle, String errorMessage) async {
     return showDialog(
         context: context,
@@ -348,25 +222,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
                   Navigator.of(context).pop();
                 },
                 child: const Text("Dismiss"),
-              )
-            ],
-          );
-        });
-  }
-
-  Future<void> _showInfoDialog(String infoTitle, String infoMessage) async {
-    return showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text(infoTitle),
-            content: Text(infoMessage),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text("OK"),
               )
             ],
           );

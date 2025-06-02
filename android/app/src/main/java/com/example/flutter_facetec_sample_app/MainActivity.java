@@ -46,9 +46,9 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
         SDKChannel.setMethodCallHandler(this::receivedFaceTecSDKMethodCall);
         processorChannel.setMethodCallHandler(this::receivedLivenessCheckProcessorCall);
         
-        // Initialize PhotoIDMatchProcessor
+        // Initialize PhotoIDMatchProcessor with the correct constructor
         photoIDMatchProcessor = new PhotoIDMatchProcessor(photoIDMatchChannel, this);
-        photoIDMatchChannel.setMethodCallHandler(photoIDMatchProcessor::receivedPhotoIDMatchProcessorCall);
+        photoIDMatchChannel.setMethodCallHandler(photoIDMatchProcessor);
     }
 
     private void receivedFaceTecSDKMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
@@ -130,10 +130,35 @@ public class MainActivity extends FlutterActivity implements FaceTecFaceScanProc
     private void initialize(String deviceKeyIdentifier, String publicFaceScanEncryptionKey, MethodChannel.Result result) {
         final Context context = this;
 
+        // Configurar personalización del SDK
         FaceTecCustomization ftCustomization = new FaceTecCustomization();
+        
+        // Configurar la imagen de marca
         ftCustomization.getOverlayCustomization().brandingImage = R.drawable.flutter_logo;
+        
+        // Configurar el fondo
+        ftCustomization.getOverlayCustomization().backgroundColor = android.graphics.Color.WHITE;
+        
+        // Configurar mensajes personalizados para Photo ID Match
+        FaceTecCustomization.setIDScanUploadMessageOverrides(
+            "Subiendo\nDocumento\nEncriptado",
+            "Seguimos Subiendo...\nConexión Lenta",
+            "Subida Completada",
+            "Procesando Documento",
+            "Subiendo\nSelfie\nEncriptada",
+            "Seguimos Subiendo...\nConexión Lenta",
+            "Subida Completada",
+            "Procesando\nSelfie",
+            "Comparando\nDocumento con Selfie",
+            "Procesando...\nPor Favor Espere",
+            "Comparación Completada",
+            "", "", "", "", "", "", "", "", ""
+        );
+        
+        // Aplicar la configuración
         FaceTecSDK.setCustomization(ftCustomization);
 
+        // Inicializar el SDK
         FaceTecSDK.initializeInDevelopmentMode(context, deviceKeyIdentifier, publicFaceScanEncryptionKey, success -> {
             if (success) {
                 result.success(true);

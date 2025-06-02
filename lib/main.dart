@@ -4,13 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'facetec_config.dart';
 import 'package:http/http.dart' as http;
-import 'processors/LivenessCheck.dart';
-import 'processors/PhotoIDMatch.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  LivenessCheckProcessor();
-  PhotoIDMatchProcessor();
+  WidgetsFlutterBinding.ensureInitialized();                              
   runApp(const MyApp());
 }
 
@@ -132,6 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   if (sessionToken != null) {
                     await platform.invokeMethod('startPhotoIDMatch', {
                       'sessionToken': sessionToken,
+                      'sessionType': 'photo-id-match',
                     });
                   }
                 } catch (e) {

@@ -151,10 +151,10 @@ class PhotoIDMatchProcessor {
 
       try {
         print("=== Parsing Response JSON ===");
-        final responseJSON = jsonDecode(responseBody);
+      final responseJSON = jsonDecode(responseBody);
         print("Response JSON keys: ${responseJSON.keys.join(', ')}");
 
-        if (responseJSON['error'] == true) {
+      if (responseJSON['error'] == true) {
           final errorMessage = responseJSON['errorMessage'] ?? 'Unknown error from endpoint';
           print("=== Error Details ===");
           print("Error message: $errorMessage");
@@ -170,11 +170,11 @@ class PhotoIDMatchProcessor {
           });
           await _channel.invokeMethod("releaseCamera", {});
           success = false;
-          return;
-        }
+        return;
+      }
 
-        if (responseJSON['scanResultBlob'] != null && responseJSON['wasProcessed'] == true) {
-          final scanResultBlob = responseJSON['scanResultBlob'];
+      if (responseJSON['scanResultBlob'] != null && responseJSON['wasProcessed'] == true) {
+        final scanResultBlob = responseJSON['scanResultBlob'];
           print("=== Processing Scan Result ===");
           print("Scan result blob length: ${scanResultBlob.length}");
           print("Was processed: ${responseJSON['wasProcessed']}");
@@ -189,14 +189,14 @@ class PhotoIDMatchProcessor {
             
             await Future.delayed(const Duration(milliseconds: 500));
             
-            success = true;
+        success = true;
           } catch (e) {
             print("Error sending scan result to native SDK: $e");
             await _channel.invokeMethod("cancelPhotoIDMatch", {});
             await _channel.invokeMethod("releaseCamera", {});
             success = false;
           }
-        } else {
+      } else {
           final errorMessage = responseJSON['errorMessage'] ?? 'No scanResultBlob or wasProcessed is false';
           print("=== Error: No Valid Scan Result ===");
           print("Error message: $errorMessage");

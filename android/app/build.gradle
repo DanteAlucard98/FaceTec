@@ -54,6 +54,6 @@ flutter {
 // FaceTecSDK: Add dependencies for native library
 dependencies {
     // Add your facetec-sdk .aar file to app/libs.
-    implementation 'com.facetec:facetec-sdk:9.7.69@aar'
+    implementation 'com.facetec:facetec-sdk:9.7.70@aar'
     implementation 'androidx.appcompat:appcompat:1.6.1'
 }

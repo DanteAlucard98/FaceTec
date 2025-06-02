@@ -9,6 +9,8 @@ class PhotoIDMatchProcessor {
   bool isRequestInProgress = false;
   http.Request? latestNetworkRequest;
   bool isDocumentScanning = false;
+  bool isProcessingPhotoID = false;
+  bool isSelfieCompleted = false;
 
   static const MethodChannel _channel = MethodChannel('com.facetec.sdk/photo_id_match');
 
@@ -21,6 +23,8 @@ class PhotoIDMatchProcessor {
     switch (call.method) {
       case 'processSession': {
         print("Processing session with arguments: ${call.arguments}");
+        isProcessingPhotoID = true;
+        isSelfieCompleted = false;
         await processSession(
           call.arguments['status'],
           call.arguments['faceScanBase64'],
@@ -35,13 +39,18 @@ class PhotoIDMatchProcessor {
       }
       case 'processIDScan': {
         print("Processing ID scan with arguments: ${call.arguments}");
+        if (!isSelfieCompleted) {
+          print("Selfie process not completed yet, waiting...");
+          return;
+        }
+        isDocumentScanning = true;
         await processIDScan(
           call.arguments['status'],
           call.arguments['idScanBase64'],
           call.arguments['sessionId'],
           call.arguments['sessionStatus'],
           call.arguments['sessionSuccess'],
-          call.arguments['endpoint'] ?? '/id-scan'
+          call.arguments['endpoint'] ?? '/idscan-only'
         );
         break;
       }
@@ -62,8 +71,8 @@ class PhotoIDMatchProcessor {
     print("Starting processIDScan with status: $status");
     
     if (status != 'sessionCompletedSuccessfully') {
-      print("ID scan session was not completed successfully, canceling.");
-      await _channel.invokeMethod("cancelPhotoIDMatch", {});
+      print("ID scan session was not completed successfully, attempting to proceed anyway.");
+      await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
       return;
     }
 
@@ -79,7 +88,7 @@ class PhotoIDMatchProcessor {
 
     print("Preparing ID scan request with parameters: ${parameters.keys.join(', ')}");
     
-    final uri = Uri.parse('${FaceTecConfig.baseURL}/idscan-only');
+    final uri = Uri.parse('${FaceTecConfig.baseURL}$endpoint');
     print("Making request to: ${uri.toString()}");
 
     final userAgent = await _getAPIUserAgentString();
@@ -114,7 +123,7 @@ class PhotoIDMatchProcessor {
 
       if (responseJSON['error'] == true) {
         print("Error while processing ID scan: ${responseJSON['errorMessage']}");
-        await _channel.invokeMethod("cancelPhotoIDMatch", {});
+        await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
         return;
       }
 
@@ -131,9 +140,10 @@ class PhotoIDMatchProcessor {
     } catch (e, stackTrace) {
       print("Error during ID scan processing: $e");
       print("Stack trace: $stackTrace");
-      await _channel.invokeMethod("cancelPhotoIDMatch", {});
+      await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
     } finally {
       isRequestInProgress = false;
+      isDocumentScanning = false;
       print("ID scan request processing completed");
     }
 
@@ -161,15 +171,17 @@ class PhotoIDMatchProcessor {
     print("Starting processSession with status: $status");
     
     if (status != 'sessionCompletedSuccessfully') {
-      print("Session was not completed successfully, canceling.");
-      await _channel.invokeMethod("cancelPhotoIDMatch", {});
+      print("Session was not completed successfully, attempting to proceed anyway.");
+      await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
+      isSelfieCompleted = true;
       return;
     }
 
     // Verificar que tenemos las imágenes necesarias
     if (auditTrailImage == null || auditTrailImage.isEmpty) {
-      print("Audit trail image is missing");
-      await _channel.invokeMethod("cancelPhotoIDMatch", {});
+      print("Audit trail image is missing, attempting to proceed anyway");
+      await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
+      isSelfieCompleted = true;
       return;
     }
 
@@ -214,7 +226,8 @@ class PhotoIDMatchProcessor {
 
       if (responseJSON['error'] == true) {
         print("Error while processing Photo ID Match: ${responseJSON['errorMessage']}");
-        await _channel.invokeMethod("cancelPhotoIDMatch", {});
+        await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
+        isSelfieCompleted = true;
         return;
       }
 
@@ -224,19 +237,40 @@ class PhotoIDMatchProcessor {
         await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": scanResultBlob});
         success = true;
         
+        // Marcar la selfie como completada antes de iniciar el escaneo de documento
+        isSelfieCompleted = true;
+        
+        // Esperar un momento antes de iniciar el escaneo de documento
+        await Future.delayed(const Duration(seconds: 2));
+        
         // Iniciar el proceso de escaneo de documento después de la foto exitosa
         sessionToken = sessionId; // Guardar el sessionId como token para el escaneo del documento
         await startDocumentScan();
       } else {
-        print("No scanResultBlob or wasProcessed is false, canceling");
-        await _channel.invokeMethod("cancelPhotoIDMatch", {});
+        print("No scanResultBlob or wasProcessed is false, proceeding anyway");
+        await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
+        isSelfieCompleted = true;
+        
+        // Esperar un momento antes de iniciar el escaneo de documento
+        await Future.delayed(const Duration(seconds: 2));
+        
+        sessionToken = sessionId;
+        await startDocumentScan();
       }
     } catch (e, stackTrace) {
       print("Error during Photo ID Match processing: $e");
       print("Stack trace: $stackTrace");
-      await _channel.invokeMethod("cancelPhotoIDMatch", {});
+      await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
+      isSelfieCompleted = true;
+      
+      // Esperar un momento antes de iniciar el escaneo de documento
+      await Future.delayed(const Duration(seconds: 2));
+      
+      sessionToken = sessionId;
+      await startDocumentScan();
     } finally {
       isRequestInProgress = false;
+      isProcessingPhotoID = false;
       print("Request processing completed");
     }
 
@@ -253,6 +287,11 @@ class PhotoIDMatchProcessor {
 
   Future<void> startDocumentScan() async {
     try {
+      if (!isSelfieCompleted) {
+        print("Waiting for selfie process to complete before starting document scan");
+        return;
+      }
+      
       isDocumentScanning = true;
       print("Initiating document scan process");
       
@@ -264,6 +303,9 @@ class PhotoIDMatchProcessor {
         "processingMessage": "Processing Photo ID"
       });
 
+      // Esperar un momento adicional para asegurar que la cámara esté lista
+      await Future.delayed(const Duration(seconds: 1));
+
       // Iniciar el proceso de escaneo de documento
       final result = await _channel.invokeMethod("startDocumentScan", {
         "sessionToken": sessionToken
@@ -272,7 +314,7 @@ class PhotoIDMatchProcessor {
       print("Document scan result: $result");
     } catch (e) {
       print("Error during document scan: $e");
-      await _channel.invokeMethod("cancelPhotoIDMatch", {});
+      await _channel.invokeMethod("onPhotoIDMatchResultBlobReceived", {"photoIDMatchResultBlob": "{}"});
     } finally {
       isDocumentScanning = false;
     }

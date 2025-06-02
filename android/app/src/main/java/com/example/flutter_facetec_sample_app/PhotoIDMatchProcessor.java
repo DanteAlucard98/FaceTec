@@ -34,6 +34,7 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
     private static final int FLUTTER_TIMEOUT_MS = 10000; // 10 seconds timeout
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable timeoutRunnable;
+    private String currentSessionId = null;
 
     public PhotoIDMatchProcessor(MethodChannel processorChannel, Context context) {
         this.processorChannel = processorChannel;
@@ -312,6 +313,10 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
             Log.d(TAG, "Session Status: " + faceTecSessionResult.getStatus());
             Log.d(TAG, "FaceScan Base64 length: " + (faceTecSessionResult.getFaceScanBase64() != null ? faceTecSessionResult.getFaceScanBase64().length() : 0));
             
+            // Guardar el ID de sesión actual
+            currentSessionId = faceTecSessionResult.getSessionId();
+            Log.d(TAG, "Stored current session ID: " + currentSessionId);
+            
             faceScanResultCallbackRef = faceTecFaceScanResultCallback;
             Log.d(TAG, "Stored faceScanResultCallbackRef");
 
@@ -343,7 +348,7 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
             Log.d(TAG, "Preparing to send session data to Flutter");
             Map<String, Object> args = new HashMap<>();
             args.put("status", "sessionCompletedSuccessfully");
-            args.put("sessionId", faceTecSessionResult.getSessionId());
+            args.put("sessionId", currentSessionId);
             args.put("faceScanBase64", faceTecSessionResult.getFaceScanBase64());
             
             // Agregar imágenes de auditoría si están disponibles
@@ -398,10 +403,13 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                                 mainHandler.removeCallbacks(timeoutRunnable);
                                 Log.d(TAG, "Removed timeout after successful data send");
                             }
-                            // Proceder con el escaneo de documentos después de una sesión exitosa
-                            if (isProcessingPhotoID) {
+                            // Proceder con el escaneo de documentos solo si la selfie fue exitosa
+                            if (isProcessingPhotoID && result != null && result.toString().contains("success")) {
                                 Log.d(TAG, "Starting document scan after successful photo ID match");
-                                startDocumentScan(faceTecSessionResult.getSessionId());
+                                startDocumentScan(currentSessionId);
+                            } else {
+                                Log.e(TAG, "Not proceeding with document scan - selfie was not successful");
+                                cancelPhotoIDMatch();
                             }
                         }
 
@@ -416,13 +424,9 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                                 mainHandler.removeCallbacks(timeoutRunnable);
                                 Log.d(TAG, "Removed timeout after error");
                             }
-                            // Intentar continuar con el escaneo de documentos incluso si hay un error
-                            if (isProcessingPhotoID) {
-                                Log.d(TAG, "Attempting document scan despite error");
-                                startDocumentScan(faceTecSessionResult.getSessionId());
-                            } else {
-                                cancelPhotoIDMatch();
-                            }
+                            // No continuar con el escaneo de documentos si hay error
+                            Log.e(TAG, "Not proceeding with document scan due to error");
+                            cancelPhotoIDMatch();
                         }
 
                         @Override
@@ -432,13 +436,9 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                                 mainHandler.removeCallbacks(timeoutRunnable);
                                 Log.d(TAG, "Removed timeout after notImplemented");
                             }
-                            // Intentar continuar con el escaneo de documentos
-                            if (isProcessingPhotoID) {
-                                Log.d(TAG, "Attempting document scan despite notImplemented");
-                                startDocumentScan(faceTecSessionResult.getSessionId());
-                            } else {
-                                cancelPhotoIDMatch();
-                            }
+                            // No continuar con el escaneo de documentos si el método no está implementado
+                            Log.e(TAG, "Not proceeding with document scan - method not implemented");
+                            cancelPhotoIDMatch();
                         }
                     });
                 } catch (Exception e) {
@@ -448,26 +448,18 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                         mainHandler.removeCallbacks(timeoutRunnable);
                         Log.d(TAG, "Removed timeout after exception");
                     }
-                    // Intentar continuar con el escaneo de documentos
-                    if (isProcessingPhotoID) {
-                        Log.d(TAG, "Attempting document scan despite exception");
-                        startDocumentScan(faceTecSessionResult.getSessionId());
-                    } else {
-                        cancelPhotoIDMatch();
-                    }
+                    // No continuar con el escaneo de documentos si hay una excepción
+                    Log.e(TAG, "Not proceeding with document scan due to exception");
+                    cancelPhotoIDMatch();
                 }
             });
             Log.d(TAG, "=== END processSessionWhileFaceTecSDKWaits ===");
         } catch (Exception e) {
             Log.e(TAG, "Error processing session: " + e.getMessage());
             Log.e(TAG, "Stack trace: " + Log.getStackTraceString(e));
-            // Intentar continuar con el escaneo de documentos
-            if (isProcessingPhotoID) {
-                Log.d(TAG, "Attempting document scan despite error");
-                startDocumentScan(faceTecSessionResult.getSessionId());
-            } else {
-                cancelPhotoIDMatch();
-            }
+            // No continuar con el escaneo de documentos si hay un error
+            Log.e(TAG, "Not proceeding with document scan due to error");
+            cancelPhotoIDMatch();
         }
     }
 
@@ -479,47 +471,68 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
             Log.d(TAG, "Status: " + (faceTecIDScanResult != null ? faceTecIDScanResult.getStatus() : "null"));
             Log.d(TAG, "Session ID: " + (faceTecIDScanResult != null ? faceTecIDScanResult.getSessionId() : "null"));
             Log.d(TAG, "Current state - isProcessingPhotoID: " + isProcessingPhotoID + ", isProcessingDocument: " + isProcessingDocument);
+            Log.d(TAG, "Current session ID: " + currentSessionId);
             
             // Guardar la referencia al callback
             idScanResultCallbackRef = faceTecIDScanResultCallback;
             Log.d(TAG, "Stored idScanResultCallbackRef");
 
-            if (faceTecIDScanResult == null) {
-                Log.e(TAG, "ID scan result is null");
-                cancelPhotoIDMatch();
-                return;
-            }
-
             // Verificar si tenemos los datos necesarios
-            String idScanBase64 = faceTecIDScanResult.getIDScanBase64();
+            String idScanBase64 = faceTecIDScanResult != null ? faceTecIDScanResult.getIDScanBase64() : null;
             Log.d(TAG, "ID Scan Base64: " + (idScanBase64 != null ? "present" : "null"));
             
-            if (idScanBase64 == null || idScanBase64.isEmpty()) {
-                Log.e(TAG, "ID scan data is missing");
-                cancelPhotoIDMatch();
+            // Verificar el estado del escaneo
+            if (faceTecIDScanResult == null || faceTecIDScanResult.getStatus() != FaceTecIDScanStatus.SUCCESS) {
+                String errorMessage = "ID scan status is not success: " + (faceTecIDScanResult != null ? faceTecIDScanResult.getStatus() : "null");
+                Log.e(TAG, errorMessage);
+                // Enviar error y terminar el proceso
+                if (idScanResultCallbackRef != null) {
+                    try {
+                        String errorJson = "{\"success\":false,\"error\":\"ID_SCAN_FAILED\",\"message\":\"" + errorMessage + "\"}";
+                        Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                        idScanResultCallbackRef.proceedToNextStep(errorJson);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error sending error JSON: " + e.getMessage());
+                    }
+                }
+                // Esperar un momento antes de limpiar el estado
+                mainHandler.postDelayed(() -> {
+                    isProcessingDocument = false;
+                    isProcessingPhotoID = false;
+                }, 1000);
                 return;
             }
 
-            // Verificar el estado del escaneo
-            if (faceTecIDScanResult.getStatus() != FaceTecIDScanStatus.SUCCESS) {
-                Log.e(TAG, "ID scan status is not success: " + faceTecIDScanResult.getStatus());
-                // En lugar de cancelar, intentamos proceder con el siguiente paso
+            if (idScanBase64 == null || idScanBase64.isEmpty()) {
+                String errorMessage = "ID scan data is missing";
+                Log.e(TAG, errorMessage);
+                // Enviar error y terminar el proceso
                 if (idScanResultCallbackRef != null) {
-                    Log.d(TAG, "Attempting to proceed despite non-success status");
-                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
+                    try {
+                        String errorJson = "{\"success\":false,\"error\":\"ID_SCAN_DATA_MISSING\",\"message\":\"" + errorMessage + "\"}";
+                        Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                        idScanResultCallbackRef.proceedToNextStep(errorJson);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error sending error JSON: " + e.getMessage());
+                    }
                 }
+                // Esperar un momento antes de limpiar el estado
+                mainHandler.postDelayed(() -> {
+                    isProcessingDocument = false;
+                    isProcessingPhotoID = false;
+                }, 1000);
                 return;
             }
 
             Log.d(TAG, "Preparing to send ID scan data to Flutter");
             Map<String, Object> args = new HashMap<>();
             args.put("status", "sessionCompletedSuccessfully");
-            args.put("sessionId", faceTecIDScanResult.getSessionId() != null ? faceTecIDScanResult.getSessionId() : "unknown");
+            args.put("sessionId", currentSessionId != null ? currentSessionId : "unknown");
             args.put("idScanBase64", idScanBase64);
             args.put("sessionStatus", faceTecIDScanResult.getStatus() != null ? faceTecIDScanResult.getStatus().toString() : "UNKNOWN");
             args.put("sessionSuccess", Boolean.TRUE);
-            args.put("endpoint", "/idscan-only"); // Corregir el endpoint según la documentación
-            Log.d(TAG, "Arguments prepared for Flutter");
+            args.put("endpoint", "/idscan-only");
+            Log.d(TAG, "Arguments prepared for Flutter: " + args.toString());
 
             // Enviar datos a Flutter
             mainHandler.post(() -> {
@@ -530,30 +543,48 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                         public void success(Object result) {
                             try {
                                 Log.d(TAG, "=== START processIDScan success ===");
-                                Log.d(TAG, "Result: " + (result != null ? result.toString() : "null"));
-                                Log.d(TAG, "Current state - isProcessingPhotoID: " + isProcessingPhotoID + ", isProcessingDocument: " + isProcessingDocument);
+                                Log.d(TAG, "Result from endpoint: " + (result != null ? result.toString() : "null"));
                                 
                                 if (result instanceof Map) {
                                     Map<String, Object> response = (Map<String, Object>) result;
-                                    Log.d(TAG, "Response status: " + response.get("status"));
-                                    Log.d(TAG, "Response message: " + response.get("message"));
-                                    Log.d(TAG, "Response data: " + response.get("data"));
+                                    Log.d(TAG, "Endpoint Response Details:");
+                                    Log.d(TAG, "- Status: " + response.get("status"));
+                                    Log.d(TAG, "- Message: " + response.get("message"));
+                                    Log.d(TAG, "- Data: " + response.get("data"));
+                                    Log.d(TAG, "- Error: " + response.get("error"));
+                                    Log.d(TAG, "- Success: " + response.get("success"));
                                 }
                                 
                                 Log.d(TAG, "ID scan data sent successfully to Flutter");
                                 if (idScanResultCallbackRef != null) {
-                                    Log.d(TAG, "Proceeding to next step with ID_SCAN_SUCCESS");
-                                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
-                                } else {
-                                    Log.e(TAG, "idScanResultCallbackRef is null after successful data send");
+                                    Log.d(TAG, "Proceeding to next step with success JSON");
+                                    try {
+                                        String successJson = "{\"success\":true,\"message\":\"ID scan completed successfully\"}";
+                                        Log.d(TAG, "Sending success JSON to endpoint: " + successJson);
+                                        idScanResultCallbackRef.proceedToNextStep(successJson);
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Error sending success JSON: " + e.getMessage());
+                                    }
                                 }
+                                // Limpiar el estado después de un éxito
+                                isProcessingDocument = false;
+                                isProcessingPhotoID = false;
                                 Log.d(TAG, "=== END processIDScan success ===");
                             } catch (Exception e) {
                                 Log.e(TAG, "Error processing success response: " + e.getMessage());
                                 Log.e(TAG, "Stack trace: " + Log.getStackTraceString(e));
                                 if (idScanResultCallbackRef != null) {
-                                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
+                                    try {
+                                        String errorJson = "{\"success\":false,\"error\":\"PROCESSING_ERROR\",\"message\":\"" + e.getMessage() + "\"}";
+                                        Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                                        idScanResultCallbackRef.proceedToNextStep(errorJson);
+                                    } catch (Exception ex) {
+                                        Log.e(TAG, "Error sending error JSON: " + ex.getMessage());
+                                    }
                                 }
+                                // Limpiar el estado después de un error
+                                isProcessingDocument = false;
+                                isProcessingPhotoID = false;
                             }
                         }
 
@@ -561,23 +592,30 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                         public void error(String errorCode, String errorMessage, Object errorDetails) {
                             try {
                                 Log.e(TAG, "=== START processIDScan error ===");
-                                Log.e(TAG, "Error code: " + errorCode);
-                                Log.e(TAG, "Error message: " + errorMessage);
-                                Log.e(TAG, "Error details: " + (errorDetails != null ? errorDetails.toString() : "null"));
-                                Log.e(TAG, "Current state - isProcessingPhotoID: " + isProcessingPhotoID + ", isProcessingDocument: " + isProcessingDocument);
+                                Log.e(TAG, "Endpoint Error Details:");
+                                Log.e(TAG, "- Error Code: " + errorCode);
+                                Log.e(TAG, "- Error Message: " + errorMessage);
+                                Log.e(TAG, "- Error Details: " + (errorDetails != null ? errorDetails.toString() : "null"));
                                 
-                                // Intentar proceder con el siguiente paso a pesar del error
                                 if (idScanResultCallbackRef != null) {
-                                    Log.d(TAG, "Attempting to proceed despite error");
-                                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
+                                    try {
+                                        String errorJson = "{\"success\":false,\"error\":\"" + errorCode + "\",\"message\":\"" + errorMessage + "\"}";
+                                        Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                                        idScanResultCallbackRef.proceedToNextStep(errorJson);
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Error sending error JSON: " + e.getMessage());
+                                    }
                                 }
+                                // Limpiar el estado después de un error
+                                isProcessingDocument = false;
+                                isProcessingPhotoID = false;
                                 Log.e(TAG, "=== END processIDScan error ===");
                             } catch (Exception e) {
                                 Log.e(TAG, "Error handling error response: " + e.getMessage());
                                 Log.e(TAG, "Stack trace: " + Log.getStackTraceString(e));
-                                if (idScanResultCallbackRef != null) {
-                                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
-                                }
+                                // Limpiar el estado después de un error
+                                isProcessingDocument = false;
+                                isProcessingPhotoID = false;
                             }
                         }
 
@@ -586,42 +624,64 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                             try {
                                 Log.e(TAG, "=== START processIDScan notImplemented ===");
                                 Log.e(TAG, "Method processIDScan not implemented in Flutter");
-                                Log.e(TAG, "Current state - isProcessingPhotoID: " + isProcessingPhotoID + ", isProcessingDocument: " + isProcessingDocument);
                                 
-                                // Proceder con el siguiente paso
                                 if (idScanResultCallbackRef != null) {
-                                    Log.d(TAG, "Proceeding to next step despite notImplemented");
-                                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
+                                    try {
+                                        String errorJson = "{\"success\":false,\"error\":\"NOT_IMPLEMENTED\",\"message\":\"Method not implemented\"}";
+                                        Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                                        idScanResultCallbackRef.proceedToNextStep(errorJson);
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Error sending error JSON: " + e.getMessage());
+                                    }
                                 }
+                                // Limpiar el estado después de un error
+                                isProcessingDocument = false;
+                                isProcessingPhotoID = false;
                                 Log.e(TAG, "=== END processIDScan notImplemented ===");
                             } catch (Exception e) {
                                 Log.e(TAG, "Error handling notImplemented: " + e.getMessage());
                                 Log.e(TAG, "Stack trace: " + Log.getStackTraceString(e));
-                                if (idScanResultCallbackRef != null) {
-                                    idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
-                                }
+                                // Limpiar el estado después de un error
+                                isProcessingDocument = false;
+                                isProcessingPhotoID = false;
                             }
                         }
                     });
                 } catch (Exception e) {
                     Log.e(TAG, "Exception while sending ID scan data to Flutter: " + e.getMessage());
                     Log.e(TAG, "Stack trace: " + Log.getStackTraceString(e));
-                    // En lugar de cancelar, intentamos proceder con el siguiente paso
                     if (idScanResultCallbackRef != null) {
-                        Log.d(TAG, "Attempting to proceed despite exception");
-                        idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
+                        try {
+                            String errorJson = "{\"success\":false,\"error\":\"COMMUNICATION_ERROR\",\"message\":\"" + e.getMessage() + "\"}";
+                            Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                            idScanResultCallbackRef.proceedToNextStep(errorJson);
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Error sending error JSON: " + ex.getMessage());
+                        }
                     }
+                    // Limpiar el estado después de un error
+                    isProcessingDocument = false;
+                    isProcessingPhotoID = false;
                 }
             });
             Log.d(TAG, "=== END processIDScanWhileFaceTecSDKWaits ===");
         } catch (Exception e) {
             Log.e(TAG, "Error processing ID scan: " + e.getMessage());
             Log.e(TAG, "Stack trace: " + Log.getStackTraceString(e));
-            // En lugar de cancelar, intentamos proceder con el siguiente paso
             if (idScanResultCallbackRef != null) {
-                Log.d(TAG, "Attempting to proceed despite error");
-                idScanResultCallbackRef.proceedToNextStep("ID_SCAN_SUCCESS");
+                try {
+                    String errorJson = "{\"success\":false,\"error\":\"PROCESSING_ERROR\",\"message\":\"" + e.getMessage() + "\"}";
+                    Log.d(TAG, "Sending error JSON to endpoint: " + errorJson);
+                    idScanResultCallbackRef.proceedToNextStep(errorJson);
+                } catch (Exception ex) {
+                    Log.e(TAG, "Error sending error JSON: " + ex.getMessage());
+                }
             }
+            // Esperar un momento antes de limpiar el estado
+            mainHandler.postDelayed(() -> {
+                isProcessingDocument = false;
+                isProcessingPhotoID = false;
+            }, 1000);
         }
     }
 
@@ -638,22 +698,51 @@ public class PhotoIDMatchProcessor implements FaceTecFaceScanProcessor, FaceTecI
                 mainHandler.removeCallbacks(timeoutRunnable);
                 timeoutRunnable = null;
             }
-            if (faceScanResultCallbackRef != null) {
-                Log.d(TAG, "Calling cancel on faceScanResultCallbackRef");
-                faceScanResultCallbackRef.cancel();
-            }
-            if (idScanResultCallbackRef != null) {
-                Log.d(TAG, "Calling cancel on idScanResultCallbackRef");
-                idScanResultCallbackRef.cancel();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error canceling Photo ID Match: " + e.getMessage());
-        } finally {
+
+            // Guardar referencias locales para evitar problemas de concurrencia
+            FaceTecFaceScanResultCallback localFaceScanCallback = faceScanResultCallbackRef;
+            FaceTecIDScanResultCallback localIDScanCallback = idScanResultCallbackRef;
+
+            // Limpiar las referencias antes de llamar a cancel
             faceScanResultCallbackRef = null;
             idScanResultCallbackRef = null;
+
+            // Llamar a cancel en los callbacks locales
+            if (localFaceScanCallback != null) {
+                Log.d(TAG, "Calling cancel on faceScanResultCallbackRef");
+                try {
+                    localFaceScanCallback.cancel();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error canceling face scan: " + e.getMessage());
+                }
+            }
+
+            if (localIDScanCallback != null) {
+                Log.d(TAG, "Calling cancel on idScanResultCallbackRef");
+                try {
+                    localIDScanCallback.cancel();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error canceling ID scan: " + e.getMessage());
+                }
+            }
+
+            // Esperar un momento antes de limpiar el estado para dar tiempo a que la cámara se libere
+            mainHandler.postDelayed(() -> {
+                try {
+                    // Limpiar el estado después de un breve retraso
+                    isProcessingPhotoID = false;
+                    isProcessingDocument = false;
+                    Log.d(TAG, "Photo ID Match process cleaned up after delay");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in delayed cleanup: " + e.getMessage());
+                }
+            }, 1000); // Esperar 1 segundo
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error canceling Photo ID Match: " + e.getMessage());
+            // Asegurarnos de que el estado se limpie incluso si hay un error
             isProcessingPhotoID = false;
             isProcessingDocument = false;
-            Log.d(TAG, "Photo ID Match process cleaned up");
         }
     }
 
